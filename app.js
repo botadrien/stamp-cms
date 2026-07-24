@@ -35,7 +35,7 @@ async function renderDashboard() {
     <button class="secondary" onclick="logout()">Déconnexion</button>
   `;
 
-  appEl.innerHTML = `<div class="card"><p class="status info">Chargement des dépôts…</p></div>`;
+  appEl.innerHTML = `<div class="card"><p class="status info">Chargement des sites…</p></div>`;
 
   let repos;
   try {
@@ -62,8 +62,8 @@ async function renderDashboard() {
 
   appEl.innerHTML = `
     <div class="card">
-      <h2>Tes dépôts</h2>
-      ${repos.length ? repoItems : renderStatus("Aucun dépôt trouvé sur ce compte.", "info")}
+      <h2>Tes sites</h2>
+      ${repos.length ? repoItems : renderStatus("Aucun site trouvé sur ce compte.", "info")}
     </div>
   `;
 }
@@ -76,7 +76,7 @@ async function openRepo(owner, name) {
 function renderEditor(loadedPath = "content/hello.md", fileSha = null, fileContent = "") {
   appEl.innerHTML = `
     <div class="card">
-      <button class="secondary" onclick="renderDashboard()">&larr; Retour aux dépôts</button>
+      <button class="secondary" onclick="renderDashboard()">&larr; Retour aux sites</button>
       <h2 style="margin-top:16px;">${currentRepo.owner}/${currentRepo.name}</h2>
 
       <label for="path">Chemin du fichier (Markdown)</label>
@@ -89,7 +89,7 @@ function renderEditor(loadedPath = "content/hello.md", fileSha = null, fileConte
       <label for="content">Contenu</label>
       <textarea id="content" placeholder="# Titre de la page&#10;&#10;Écris ton contenu en markdown ici...">${fileContent}</textarea>
 
-      <button onclick="saveFile()">Enregistrer (commit)</button>
+      <button onclick="saveFile()">Publier</button>
       <div id="editorStatus"></div>
     </div>
   `;
@@ -130,7 +130,7 @@ async function saveFile() {
       sha: renderEditor.currentSha,
     });
     statusEl.innerHTML = renderStatus(
-      "Commit effectué avec succès sur Codeberg ✓",
+      "Publié avec succès sur Codeberg ✓",
       "success"
     );
   } catch (err) {

@@ -58,7 +58,7 @@ commit direct.
 3. Sers le dossier avec un serveur statique (obligatoire — `file://` casse `fetch` et
    `crypto.subtle`, et OAuth n'accepte pas les chemins locaux comme Redirect URI) :
    ```bash
-   python3 -m http.server 8080
+   make run
    ```
 4. Va sur `http://localhost:8080/`, connecte-toi, ouvre un dépôt, édite/crée un
    fichier `.md` et enregistre — ça doit produire un vrai commit sur Codeberg.

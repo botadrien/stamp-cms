@@ -54,9 +54,9 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
 
   const content = `# Test e2e\n\nÉcrit automatiquement le ${new Date().toISOString()} — accents: éàçù.`;
   await page.locator("#content").fill(content);
-  await page.getByRole("button", { name: "Enregistrer (commit)" }).click();
+  await page.getByRole("button", { name: "Publier" }).click();
 
-  await expect(page.locator(".status.success")).toContainText("Commit effectué", { timeout: 10_000 });
+  await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 10_000 });
 
   // Vérification indépendante : le commit a vraiment atterri sur Forgejo, via son API.
   const res = await page.request.get(
