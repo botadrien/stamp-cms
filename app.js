@@ -43,6 +43,11 @@ async function renderDashboard() {
   try {
     repos = await api.listRepos();
   } catch (err) {
+    if (err.status === 401) {
+      sessionStorage.clear();
+      renderLogin(err.message);
+      return;
+    }
     appEl.innerHTML = `<div class="card">${renderStatus(err.message, "error")}</div>`;
     return;
   }
@@ -112,7 +117,8 @@ async function createSite() {
     currentRepo = { owner: repo.owner.login, name: repo.name };
     renderEditor();
   } catch (err) {
-    statusEl.innerHTML = renderStatus(err.message, "error");
+    const message = err.status === 422 ? "Ce nom est déjà pris, choisis-en un autre." : err.message;
+    statusEl.innerHTML = renderStatus(message, "error");
   }
 }
 
@@ -180,15 +186,20 @@ async function saveFile() {
   statusEl.innerHTML = renderStatus("Enregistrement…", "info");
 
   try {
-    await api.saveFile(currentRepo.owner, currentRepo.name, path, content, {
+    const result = await api.saveFile(currentRepo.owner, currentRepo.name, path, content, {
       sha: renderEditor.currentSha,
     });
+    renderEditor.currentSha = result.content.sha;
     statusEl.innerHTML = renderStatus(
       "Publié avec succès sur Codeberg ✓",
       "success"
     );
   } catch (err) {
-    statusEl.innerHTML = renderStatus(err.message, "error");
+    const message =
+      err.status === 409
+        ? "Cette page a été modifiée entre-temps ailleurs — recharge-la (« Charger ce fichier ») avant de publier, pour ne pas écraser ce changement."
+        : err.message;
+    statusEl.innerHTML = renderStatus(message, "error");
   }
 }
 

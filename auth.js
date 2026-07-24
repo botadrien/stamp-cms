@@ -30,9 +30,7 @@ async function handleRedirectCallback() {
 
   const codeVerifier = sessionStorage.getItem(VERIFIER_STORAGE_KEY);
   if (!codeVerifier) {
-    throw new Error(
-      "code_verifier introuvable — la session a peut-être expiré, réessaie de te connecter."
-    );
+    throw new Error("La connexion a expiré ou a été interrompue, réessaie de te connecter.");
   }
 
   const body = new URLSearchParams({
@@ -43,15 +41,21 @@ async function handleRedirectCallback() {
     code_verifier: codeVerifier,
   });
 
-  const response = await fetch(TOKEN_ENDPOINT(), {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
+  let response;
+  try {
+    response = await fetch(TOKEN_ENDPOINT(), {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+  } catch (networkErr) {
+    console.error("Network error lors de l'échange du token :", networkErr);
+    throw new Error("Impossible de contacter Codeberg — vérifie ta connexion et réessaie.");
+  }
 
   if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Échec de l'échange du token : ${errText}`);
+    console.error(`Échec de l'échange du token (${response.status}) :`, await response.text());
+    throw new Error("La connexion à Codeberg a échoué, réessaie.");
   }
 
   const data = await response.json();
