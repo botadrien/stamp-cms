@@ -72,6 +72,23 @@ class ForgejoApi {
     });
   }
 
+  // Webhook nécessaire pour que Codeberg Pages serve réellement la branche "pages" —
+  // sans ça, la branche existe mais rien n'est publié (voir docs.codeberg.org/codeberg-pages/,
+  // section Webhooks : le type de webhook doit être "forgejo", filtré sur la branche
+  // "pages", avec l'URL Codeberg Pages elle-même comme cible).
+  createPagesWebhook(owner, repo) {
+    return this._request(`/repos/${owner}/${repo}/hooks`, {
+      method: "POST",
+      body: JSON.stringify({
+        type: "forgejo",
+        config: { content_type: "json", url: this.pagesUrl(owner, repo) },
+        events: ["push"],
+        branch_filter: "pages",
+        active: true,
+      }),
+    });
+  }
+
   // Liste le contenu d'un dossier dans un dépôt (racine par défaut)
   listContents(owner, repo, path = "") {
     return this._request(`/repos/${owner}/${repo}/contents/${path}`);

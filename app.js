@@ -107,6 +107,7 @@ async function createSite() {
   try {
     const repo = await api.createRepo(name);
     await api.createBranch(repo.owner.login, repo.name, "pages", repo.default_branch);
+    await api.createPagesWebhook(repo.owner.login, repo.name);
     await api.saveFile(
       repo.owner.login,
       repo.name,
@@ -209,8 +210,16 @@ async function init() {
   renderLoading("Vérification de la session…");
 
   try {
-    const codeInUrl = new URLSearchParams(window.location.search).get("code");
-    if (codeInUrl) {
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get("error");
+    if (oauthError) {
+      // Ex. "a grant exists with different scope" si l'appli a été autorisée avant
+      // avec un scope différent (revoke-la sur Codeberg dans Settings > Applications).
+      window.history.replaceState({}, document.title, window.location.pathname);
+      renderLogin(`La connexion a été refusée par Codeberg (${oauthError}).`);
+      return;
+    }
+    if (params.get("code")) {
       renderLoading("Connexion en cours…");
       await handleRedirectCallback();
     }
