@@ -6,3 +6,4 @@ test-results
 playwright-report
 editor.bundle.js
 editor.bundle.css
+/index.html

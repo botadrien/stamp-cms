@@ -46,16 +46,20 @@ Valider brique par brique, en commençant par la plus risquée :
 
 ## Tester en local
 
-Le POC (`index.html`, `config.js`, `pkce.js`, `auth.js`, `api.js`, `app.js`) couvre le
-login OAuth+PKCE, la liste des dépôts, et la lecture/écriture d'un fichier Markdown via
-commit direct, avec un éditeur riche (BlockNote.js, voir `editor-src/editor.jsx`) plutôt
-que du Markdown brut.
+Le POC (`index.template.html`, `config.js`, `pkce.js`, `auth.js`, `api.js`, `app.js`)
+couvre le login OAuth+PKCE, la liste des dépôts, et la lecture/écriture d'un fichier
+Markdown via commit direct, avec un éditeur riche (BlockNote.js, voir
+`editor-src/editor.jsx`) plutôt que du Markdown brut.
 
 BlockNote (React + ProseMirror + Mantine) est trop imbriqué pour être chargé fiablement
 via des `<script>`/CDN sans bundler (duplication de singletons ProseMirror entre le point
 d'entrée principal et ses sous-modules) — un petit build esbuild (`npm run build`)
-produit `editor.bundle.js`/`.css`, chargés par `index.html` comme n'importe quel autre
-script. Le reste de l'app reste des scripts classiques sans build.
+produit `editor.bundle.js`/`.css`. Ce même build génère aussi `index.html` à partir de
+`index.template.html` (le fichier à éditer — `index.html` est généré, gitignore) en
+ajoutant un `?v=<hash du commit>` à chaque script/style local, pour que les navigateurs
+(ou un CDN devant Codeberg Pages) rechargent bien les fichiers après un déploiement au
+lieu de resservir une version périmée en cache. Le reste de l'app reste des scripts
+classiques sans build.
 
 1. Crée une OAuth App sur Codeberg (**Settings → Applications**), en **décochant
    "Confidential Client"** (client public, sans secret, requis pour PKCE), avec un

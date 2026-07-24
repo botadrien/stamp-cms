@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild editor-src/editor.jsx --bundle --minify --format=iife --global-name=RichEditor --jsx=automatic --conditions=style --outfile=editor.bundle.js",
+    "build": "esbuild editor-src/editor.jsx --bundle --minify --format=iife --global-name=RichEditor --jsx=automatic --conditions=style --outfile=editor.bundle.js && node scripts/build-html.mjs",
     "e2e:up": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans; docker compose -f e2e/docker-compose.yml up -d && node e2e/seed.mjs",
     "e2e:down": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans",
     "e2e:test": "npm run build && playwright test -c e2e/playwright.config.mjs",

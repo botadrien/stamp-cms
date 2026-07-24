@@ -11,7 +11,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "python3 -m http.server 8080",
+    command: "python3 scripts/local-server.py 8080",
     cwd: "..",
     url: "http://localhost:8080/config.js",
     reuseExistingServer: true,
