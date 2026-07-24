@@ -74,5 +74,6 @@ function getStoredToken() {
 
 function logout() {
   sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  window.location.hash = "";
   window.location.reload();
 }

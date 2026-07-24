@@ -30,6 +30,53 @@ function renderLoading(message) {
   appEl.innerHTML = renderStatus(message, "info");
 }
 
+// Écrans adressés par l'URL (#/, #/owner/repo, #/owner/repo/edit/chemin) plutôt que par
+// de simples appels de fonction : chaque navigation interne (openRepo, editPage, boutons
+// "Retour"...) passe par window.location.hash = ..., ce qui pousse une entrée d'historique
+// navigateur. Sans ça, le bouton "Précédent" du navigateur retombe directement sur les
+// pages du flow OAuth (login/consentement Codeberg) qui précèdent le premier écran de
+// l'appli, puisque les changements d'écran ne touchaient jamais l'historique.
+function siteHash(owner, name) {
+  return `#/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
+}
+
+function editorHash(owner, name, path) {
+  return `${siteHash(owner, name)}/edit/${encodeURIComponent(path)}`;
+}
+
+function parseHash(hash) {
+  const clean = (hash || "").replace(/^#\/?/, "");
+  if (!clean) return { view: "dashboard" };
+  const segments = clean.split("/");
+  const owner = decodeURIComponent(segments[0] || "");
+  const repo = decodeURIComponent(segments[1] || "");
+  if (!owner || !repo) return { view: "dashboard" };
+  if (segments[2] === "edit" && segments[3]) {
+    return { view: "editor", owner, repo, path: decodeURIComponent(segments[3]) };
+  }
+  return { view: "sitePages", owner, repo };
+}
+
+// Traduit l'URL courante en écran affiché — appelé au chargement (pour permettre de
+// recharger la page sur un site/une page précis·e) et à chaque "hashchange" (navigation
+// interne, ou bouton Précédent/Suivant du navigateur).
+async function renderRoute() {
+  if (!api) return; // pas encore authentifié, rien à router pour l'instant
+  const route = parseHash(window.location.hash);
+  if (route.view === "dashboard") {
+    currentRepo = null;
+    await renderDashboard();
+  } else if (route.view === "sitePages") {
+    currentRepo = { owner: route.owner, name: route.repo };
+    await renderSitePages(route.owner, route.repo);
+  } else {
+    currentRepo = { owner: route.owner, name: route.repo };
+    await openEditor(route.owner, route.repo, route.path);
+  }
+}
+
+window.addEventListener("hashchange", renderRoute);
+
 async function renderDashboard() {
   RichEditor.unmount();
   userbarEl.innerHTML = `
@@ -107,24 +154,22 @@ async function createSite() {
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
     await rebuildAndPublishSite(owner, repo.name);
 
-    currentRepo = { owner, name: repo.name };
-    renderSitePages(owner, repo.name);
+    window.location.hash = siteHash(owner, repo.name);
   } catch (err) {
     const message = err.status === 409 ? "Ce nom est déjà pris, choisis-en un autre." : err.message;
     statusEl.innerHTML = renderStatus(message, "error");
   }
 }
 
-async function openRepo(owner, name) {
-  currentRepo = { owner, name };
-  renderSitePages(owner, name);
+function openRepo(owner, name) {
+  window.location.hash = siteHash(owner, name);
 }
 
 async function renderSitePages(owner, name) {
   RichEditor.unmount();
   appEl.innerHTML = `
     <div class="card">
-      <button class="secondary" onclick="renderDashboard()">&larr; Retour aux sites</button>
+      <button class="secondary" onclick="window.location.hash = '#/'">&larr; Retour aux sites</button>
       <h2 style="margin-top:16px;">${owner}/${name}</h2>
       <p style="margin-top:-8px;">
         <a href="${api.pagesUrl(owner, name)}" target="_blank" rel="noopener">
@@ -171,27 +216,46 @@ function addPage() {
   }
   const existingPaths = (renderSitePages.pages || []).map((p) => p.path);
   const path = nextAvailablePagePath(title, existingPaths);
-  renderEditor(path, null, "");
+  window.location.hash = editorHash(currentRepo.owner, currentRepo.name, path);
 }
 
-async function editPage(path) {
+function editPage(path) {
+  window.location.hash = editorHash(currentRepo.owner, currentRepo.name, path);
+}
+
+// Charge une page existante, ou prépare un éditeur vide si elle n'existe pas encore (cas
+// d'une page tout juste ajoutée via "Ajouter une page", pas encore publiée donc pas
+// encore sur main — un 404 ici est normal, pas une vraie erreur).
+async function openEditor(owner, name, path) {
   RichEditor.unmount();
-  const owner = currentRepo.owner;
-  const name = currentRepo.name;
   appEl.innerHTML = renderStatus("Chargement…", "info");
+
+  let sha = null;
+  let content = "";
   try {
-    const file = await api.getFile(owner, name, path, "main");
-    const decoded = stripFrontMatter(decodeBase64Utf8(file.content));
-    renderEditor(path, file.sha, decoded);
+    const file = await api.getFile(owner, name, path, "main", { silent404: true });
+    sha = file.sha;
+    content = stripFrontMatter(decodeBase64Utf8(file.content));
   } catch (err) {
-    renderSitePages(owner, name);
+    if (err.status !== 404) {
+      const backHash = siteHash(owner, name);
+      appEl.innerHTML = `
+        <div class="card">
+          <button class="secondary" onclick='window.location.hash = ${JSON.stringify(backHash)}'>&larr; Retour aux pages</button>
+          ${renderStatus(err.message, "error")}
+        </div>
+      `;
+      return;
+    }
   }
+  renderEditor(path, sha, content);
 }
 
 function renderEditor(path, fileSha, fileContent) {
+  const backHash = siteHash(currentRepo.owner, currentRepo.name);
   appEl.innerHTML = `
     <div class="card">
-      <button class="secondary" onclick="renderSitePages(currentRepo.owner, currentRepo.name)">&larr; Retour aux pages</button>
+      <button class="secondary" onclick='window.location.hash = ${JSON.stringify(backHash)}'>&larr; Retour aux pages</button>
       <h2 style="margin-top:16px;">${currentRepo.owner}/${currentRepo.name}</h2>
 
       <label>Contenu</label>
@@ -282,7 +346,9 @@ async function init() {
     return;
   }
 
-  renderDashboard();
+  // Respecte l'URL courante (utile en cas de rechargement au milieu de l'appli) plutôt
+  // que de toujours retomber sur le tableau de bord.
+  await renderRoute();
 }
 
 init();
