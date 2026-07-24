@@ -50,3 +50,26 @@ test("créer un site publie automatiquement une branche pages", async ({ page })
   const decoded = Buffer.from(file.content, "base64").toString("utf-8");
   expect(decoded).toContain("Site en construction");
 });
+
+test("créer un site avec un nom déjà pris affiche un message clair", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Se connecter avec Codeberg" }).click();
+
+  await page.waitForURL(/\/user\/login/);
+  await page.locator("#user_name").fill(seed.username);
+  await page.locator("#password").fill(seed.password);
+  await page.locator("#password").press("Enter");
+
+  await page.locator("#authorize-app").click();
+  await page.waitForURL(/localhost:8080/);
+  await expect(page.getByText(`${seed.repoOwner}/${seed.repoName}`)).toBeVisible({ timeout: 10_000 });
+
+  // Le dépôt de test créé par le seed existe déjà sous ce nom.
+  await page.locator("#newSiteName").fill(seed.repoName);
+  await page.getByRole("button", { name: "Créer" }).click();
+
+  await expect(page.locator("#createSiteStatus .status.error")).toContainText("déjà pris", {
+    timeout: 10_000,
+  });
+  await expect(page.locator("#createSiteStatus .status.error")).not.toContainText(/\{|API error|status/i);
+});

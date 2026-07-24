@@ -117,7 +117,7 @@ async function createSite() {
     currentRepo = { owner: repo.owner.login, name: repo.name };
     renderEditor();
   } catch (err) {
-    const message = err.status === 422 ? "Ce nom est déjà pris, choisis-en un autre." : err.message;
+    const message = err.status === 409 ? "Ce nom est déjà pris, choisis-en un autre." : err.message;
     statusEl.innerHTML = renderStatus(message, "error");
   }
 }
@@ -195,8 +195,10 @@ async function saveFile() {
       "success"
     );
   } catch (err) {
+    // Forgejo/Codeberg répondent 422 (pas 409) quand le sha envoyé ne correspond plus au
+    // fichier côté serveur — ça n'arrive que si on avait un sha (mise à jour, pas création).
     const message =
-      err.status === 409
+      renderEditor.currentSha && err.status === 422
         ? "Cette page a été modifiée entre-temps ailleurs — recharge-la (« Charger ce fichier ») avant de publier, pour ne pas écraser ce changement."
         : err.message;
     statusEl.innerHTML = renderStatus(message, "error");
