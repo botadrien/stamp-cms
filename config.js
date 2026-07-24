@@ -20,6 +20,11 @@ const CONFIG = window.__CMS_TEST_CONFIG__ || {
   // et être l'URL où ce fichier index.html est servi.
   redirectUri: window.location.origin + window.location.pathname,
 
-  // Scopes demandés : lecture/écriture des dépôts et infos de base de l'utilisateur
-  scope: "read:repository write:repository read:user",
+  // Scopes demandés : lecture/écriture des dépôts, infos de base de l'utilisateur, et
+  // write:user (nécessaire pour créer un nouveau dépôt via POST /user/repos)
+  scope: "read:repository write:repository read:user write:user",
+
+  // Domaine où Codeberg Pages sert les sites publiés (voir api.js:pagesUrl) —
+  // non pertinent pour une instance Forgejo auto-hébergée sans pages-server.
+  pagesDomain: "codeberg.page",
 };

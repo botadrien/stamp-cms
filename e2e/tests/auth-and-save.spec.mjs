@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
     instanceUrl: seed.instanceUrl,
     clientId: seed.clientId,
     redirectUri: seed.redirectUri,
-    scope: "read:repository write:repository read:user",
+    scope: "read:repository write:repository read:user write:user",
   });
 });
 
@@ -37,9 +37,10 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
 
   // Retour sur l'app, authentifié, dépôt de test listé.
   await page.waitForURL(/localhost:8080/);
-  await expect(page.getByText(`${seed.repoOwner}/${seed.repoName}`)).toBeVisible({ timeout: 10_000 });
+  const repoItem = page.locator(".repo-item", { hasText: `${seed.repoOwner}/${seed.repoName}` });
+  await expect(repoItem).toBeVisible({ timeout: 10_000 });
 
-  await page.getByRole("button", { name: "Ouvrir" }).click();
+  await repoItem.getByRole("button", { name: "Ouvrir" }).click();
 
   const testPath = "content/e2e-test.md";
   await page.locator("#path").fill(testPath);

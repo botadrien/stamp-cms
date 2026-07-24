@@ -65,7 +65,53 @@ async function renderDashboard() {
       <h2>Tes sites</h2>
       ${repos.length ? repoItems : renderStatus("Aucun site trouvé sur ce compte.", "info")}
     </div>
+    <div class="card">
+      <h2>Créer un site</h2>
+      <label for="newSiteName">Nom du site</label>
+      <input id="newSiteName" placeholder="mon-site" />
+      <button onclick="createSite()">Créer</button>
+      <div id="createSiteStatus"></div>
+    </div>
   `;
+}
+
+function slugifySiteName(raw) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // accents
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+async function createSite() {
+  const rawName = document.getElementById("newSiteName").value;
+  const statusEl = document.getElementById("createSiteStatus");
+  const name = slugifySiteName(rawName);
+
+  if (!name) {
+    statusEl.innerHTML = renderStatus("Choisis un nom pour ton site.", "error");
+    return;
+  }
+
+  statusEl.innerHTML = renderStatus("Création du site…", "info");
+  try {
+    const repo = await api.createRepo(name);
+    await api.createBranch(repo.owner.login, repo.name, "pages", repo.default_branch);
+    await api.saveFile(
+      repo.owner.login,
+      repo.name,
+      "index.html",
+      `<!DOCTYPE html>\n<html lang="fr">\n<head><meta charset="utf-8" /><title>${repo.name}</title></head>\n<body><h1>Site en construction</h1></body>\n</html>\n`,
+      { branch: "pages", message: "Publication initiale" }
+    );
+    currentRepo = { owner: repo.owner.login, name: repo.name };
+    renderEditor();
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
+  }
 }
 
 async function openRepo(owner, name) {
@@ -78,6 +124,11 @@ function renderEditor(loadedPath = "content/hello.md", fileSha = null, fileConte
     <div class="card">
       <button class="secondary" onclick="renderDashboard()">&larr; Retour aux sites</button>
       <h2 style="margin-top:16px;">${currentRepo.owner}/${currentRepo.name}</h2>
+      <p style="margin-top:-8px;">
+        <a href="${api.pagesUrl(currentRepo.owner, currentRepo.name)}" target="_blank" rel="noopener">
+          Voir le site publié &#8599;
+        </a>
+      </p>
 
       <label for="path">Chemin du fichier (Markdown)</label>
       <input id="path" value="${loadedPath}" />
