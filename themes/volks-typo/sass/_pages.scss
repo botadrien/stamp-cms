@@ -1,0 +1,349 @@
+// About + Contact pages
+// Ported from astro-theme src/pages/about.astro and contact.astro scoped styles.
+// Astro styles were component-scoped; here they are nested under each page
+// wrapper to preserve that isolation. Rules identical across both pages
+// (.page-rule, and the wrapper max-width/margin) are deduplicated below.
+
+.about-page,
+.contact-page,
+.standalone-page {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+// Shared horizontal rule (identical in about.astro and contact.astro)
+.page-rule {
+  height: 4px;
+  background-color: var(--color-accent);
+  border: none;
+  width: 120px;
+  margin: 0 auto;
+}
+
+// ── About page ──────────────────────────────────────────────
+.about-page {
+  .page-header {
+    text-align: center;
+    margin-bottom: calc(var(--grid-unit) * 6);
+  }
+
+  .page-title {
+    font-family: var(--font-heading-primary);
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    line-height: 1.1;
+    margin-bottom: calc(var(--grid-unit) * 4);
+  }
+
+  .author-section {
+    text-align: center;
+    margin-bottom: calc(var(--grid-unit) * 10);
+    padding: calc(var(--grid-unit) * 6) calc(var(--grid-unit) * 4);
+    background-color: var(--color-surface);
+    border-radius: calc(var(--grid-unit));
+  }
+
+  .author-avatar {
+    margin-bottom: calc(var(--grid-unit) * 3);
+  }
+
+  .author-avatar img {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid var(--color-accent);
+  }
+
+  .avatar-placeholder {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    border: 4px solid var(--color-accent);
+    background-color: var(--color-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-medium-gray);
+    margin: 0 auto;
+  }
+
+  .author-name {
+    font-family: var(--font-heading-secondary);
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: calc(var(--grid-unit) * 2);
+  }
+
+  .author-bio {
+    font-size: 1.25rem;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    max-width: 600px;
+    margin: 0 auto calc(var(--grid-unit) * 4);
+  }
+
+  .social-links {
+    display: flex;
+    gap: calc(var(--grid-unit) * 3);
+    justify-content: center;
+    align-items: center;
+  }
+
+  .social-links a {
+    color: var(--color-text-secondary);
+    transition: color 0.2s ease, transform 0.2s ease;
+  }
+
+  .social-links a:hover {
+    color: var(--color-accent);
+    transform: translateY(-2px);
+  }
+
+  .social-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .content-section {
+    line-height: 1.7;
+  }
+
+  .content-section h2 {
+    font-family: var(--font-heading-secondary);
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: calc(var(--grid-unit) * 6);
+    margin-bottom: calc(var(--grid-unit) * 3);
+  }
+
+  .content-section p {
+    font-size: 1.125rem;
+    line-height: 1.6;
+    color: var(--color-text-primary);
+    margin-bottom: calc(var(--grid-unit) * 3);
+  }
+
+  .content-section ul {
+    margin: calc(var(--grid-unit) * 2) 0;
+    padding-left: calc(var(--grid-unit) * 3);
+  }
+
+  .content-section li {
+    margin-bottom: calc(var(--grid-unit) * 2);
+    font-size: 1.125rem;
+    line-height: 1.6;
+  }
+
+  .content-section strong {
+    color: var(--color-text-primary);
+  }
+
+  @media (max-width: 768px) {
+    .page-title {
+      font-size: 2.5rem;
+    }
+
+    .author-section {
+      padding: calc(var(--grid-unit) * 4) calc(var(--grid-unit) * 3);
+    }
+
+    .author-name {
+      font-size: 2rem;
+    }
+
+    .author-bio {
+      font-size: 1.125rem;
+    }
+
+    .author-avatar img {
+      width: 120px;
+      height: 120px;
+    }
+
+    .avatar-placeholder {
+      width: 120px;
+      height: 120px;
+    }
+
+    .social-links {
+      gap: calc(var(--grid-unit) * 2);
+    }
+
+    .content-section h2 {
+      font-size: 1.5rem;
+    }
+
+    .content-section p,
+    .content-section li {
+      font-size: 1rem;
+    }
+  }
+}
+
+// ── Contact page ────────────────────────────────────────────
+.contact-page {
+  .page-header {
+    text-align: center;
+    margin-bottom: calc(var(--grid-unit) * 8);
+  }
+
+  .page-title {
+    font-family: var(--font-heading-primary);
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.1;
+    margin-bottom: calc(var(--grid-unit) * 3);
+  }
+
+  .page-description {
+    font-size: 1.25rem;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    margin-bottom: calc(var(--grid-unit) * 4);
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .contact-content {
+    line-height: 1.7;
+  }
+
+  .contact-info h2 {
+    font-family: var(--font-heading-secondary);
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: calc(var(--grid-unit) * 3);
+  }
+
+  .contact-links {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--grid-unit) * 2);
+    margin-top: calc(var(--grid-unit) * 4);
+  }
+
+  .contact-link {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    padding: calc(var(--grid-unit) * 2);
+    border: 2px solid var(--color-border);
+    transition: all 0.2s ease;
+  }
+
+  .contact-link:hover,
+  .contact-link:focus {
+    border-color: var(--color-accent);
+    background-color: var(--color-surface);
+  }
+
+  .contact-label {
+    font-family: var(--font-heading-secondary);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    margin-bottom: calc(var(--grid-unit) / 2);
+  }
+
+  .contact-link:hover .contact-label,
+  .contact-link:focus .contact-label {
+    color: var(--color-accent);
+  }
+
+  @media (max-width: 768px) {
+    .page-title {
+      font-size: 2.5rem;
+    }
+
+    .page-description {
+      font-size: 1.125rem;
+    }
+  }
+}
+
+// ── Page standalone générique (CMS Statique) ───────────────
+// Ajouté hors thème d'origine : about.html/contact.html sont chacune écrites pour une
+// page précise, ça ne convient pas à une page quelconque créée via le CMS. Reprend le
+// même look que .contact-page (titre centré + contenu en prose), sans les blocs
+// spécifiques au formulaire de contact.
+.standalone-page {
+  .page-header {
+    text-align: center;
+    margin-bottom: calc(var(--grid-unit) * 8);
+  }
+
+  .page-title {
+    font-family: var(--font-heading-primary);
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.1;
+    margin-bottom: calc(var(--grid-unit) * 3);
+  }
+
+  .content-section {
+    line-height: 1.7;
+  }
+
+  .content-section h2 {
+    font-family: var(--font-heading-secondary);
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: calc(var(--grid-unit) * 6);
+    margin-bottom: calc(var(--grid-unit) * 3);
+  }
+
+  .content-section p {
+    font-size: 1.125rem;
+    line-height: 1.6;
+    color: var(--color-text-primary);
+    margin-bottom: calc(var(--grid-unit) * 3);
+  }
+
+  .content-section ul {
+    margin: calc(var(--grid-unit) * 2) 0;
+    padding-left: calc(var(--grid-unit) * 3);
+  }
+
+  .content-section li {
+    margin-bottom: calc(var(--grid-unit) * 2);
+    font-size: 1.125rem;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 768px) {
+    .page-title {
+      font-size: 2.5rem;
+    }
+
+    .content-section h2 {
+      font-size: 1.5rem;
+    }
+
+    .content-section p,
+    .content-section li {
+      font-size: 1rem;
+    }
+  }
+}

@@ -1,0 +1,55 @@
+/* Light / dark / auto theme switch — a single cycling button. It shows only the
+   CURRENT mode's icon (sun / moon / bolt-auto) and clicking cycles to the next
+   mode. Icons use the SVGs in static/ via mask-image so they pick up currentColor
+   and adapt to light/dark. The visible icon is driven by the [data-theme-mode]
+   attribute set in theme-init.js (no flash, no JS class toggling). */
+.theme-toggle {
+  background: none;
+  border: none;
+  padding: calc(var(--grid-unit));
+  cursor: pointer;
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.theme-toggle:hover {
+  color: var(--color-accent);
+}
+
+.theme-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  background-color: currentColor;
+  -webkit-mask: center / contain no-repeat;
+  mask: center / contain no-repeat;
+}
+
+.theme-icon-light {
+  -webkit-mask-image: url('sun.svg');
+  mask-image: url('sun.svg');
+}
+
+.theme-icon-dark {
+  -webkit-mask-image: url('moon.svg');
+  mask-image: url('moon.svg');
+}
+
+.theme-icon-auto {
+  -webkit-mask-image: url('bolt-auto.svg');
+  mask-image: url('bolt-auto.svg');
+}
+
+/* Show only the icon for the current mode */
+.theme-toggle .theme-icon {
+  display: none;
+}
+
+[data-theme-mode="light"] .theme-toggle .theme-icon-light,
+[data-theme-mode="dark"] .theme-toggle .theme-icon-dark,
+[data-theme-mode="auto"] .theme-toggle .theme-icon-auto {
+  display: block;
+}

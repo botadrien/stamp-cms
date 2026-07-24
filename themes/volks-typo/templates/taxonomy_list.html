@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block seo %}{% set tax_title = taxonomy.name | capitalize %}{{ seo::seo(title=tax_title ~ " | " ~ config.title, description="Browse articles by " ~ taxonomy.name) }}{% endblock %}
+
+{% block content %}
+<div class="categories-page">
+  <header class="page-header">
+    {% if taxonomy.name == "tags" %}
+    <h1 class="page-title">Tags</h1>
+    <p class="page-description">
+      Browse articles organized by tag. Click on any tag to see related posts.
+    </p>
+    {% else %}
+    <h1 class="page-title">Categories</h1>
+    <p class="page-description">
+      Browse articles organized by category. Click on any category to see related posts.
+    </p>
+    {% endif %}
+    <hr class="page-rule" />
+  </header>
+
+  {% set sorted_terms = terms | sort(attribute="page_count") | reverse %}
+  {% if sorted_terms | length > 0 %}
+  <div class="categories-grid">
+    {% for term in sorted_terms %}
+    <div class="category-card">
+      <a href="{{ term.permalink | safe }}" class="category-link">
+        <h2 class="category-title">{{ term.name }}</h2>
+        <p class="category-count">
+          {{ term.page_count }} article{% if term.page_count != 1 %}s{% endif %}
+        </p>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="no-categories">
+    <p>No {{ taxonomy.name }} found. Add {{ taxonomy.name }} to your blog posts in the frontmatter.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock content %}

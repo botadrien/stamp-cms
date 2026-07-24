@@ -1,53 +1,125 @@
 // Orchestration du "vrai" site statique (Zola, via ZolaBuilder — voir
-// editor-src/zola-builder.js) : gabarit fixe (templates + config.toml) + contenu
-// Markdown récupéré sur la branche main, buildé en mémoire, publié sur la branche
-// pages. Utilisé à la fois à la création du site et à chaque "Publier".
+// editor-src/zola-builder.js) : thème vendoré (themes/<nom>/, voir CURRENT_THEME
+// ci-dessous) + config.toml généré dynamiquement + contenu Markdown récupéré sur la
+// branche main, buildé en mémoire, publié sur la branche pages. Utilisé à la fois à la
+// création du site et à chaque "Publier".
 
-const ZOLA_TEMPLATE_STYLE = `
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; line-height: 1.6; }
-  nav { display: flex; gap: 16px; margin-bottom: 32px; padding-bottom: 12px; border-bottom: 1px solid #ddd; }
-  nav a { color: inherit; text-decoration: none; }
-  nav a[aria-current="page"] { font-weight: 600; text-decoration: underline; }
+// Thème codé en dur pour l'instant (voir README.md, section "Génération du site") —
+// point d'accroche pour un choix de thème plus tard : il suffira de faire varier cette
+// valeur (et de vendorer d'autres thèmes sous themes/<nom>/, voir
+// scripts/fetch-theme-volks-typo.sh pour le modèle).
+const CURRENT_THEME = "volks-typo";
+
+let cachedThemeFiles = null;
+
+// Récupère tous les fichiers d'un thème vendoré (themes/<nom>/manifest.json + chaque
+// fichier qu'il liste) en Uint8Array — texte et binaire (polices, icônes) traités pareil,
+// Zola recopie les assets statiques tels quels de toute façon. Mis en cache en mémoire :
+// le thème ne change pas d'une publication à l'autre dans une session.
+async function loadThemeFiles(themeName) {
+  if (cachedThemeFiles) return cachedThemeFiles;
+
+  const manifestRes = await fetch(`themes/${themeName}/manifest.json`);
+  if (!manifestRes.ok) {
+    throw new Error(`Thème "${themeName}" introuvable.`);
+  }
+  const paths = await manifestRes.json();
+
+  const files = {};
+  await Promise.all(
+    paths.map(async (relPath) => {
+      const res = await fetch(`themes/${themeName}/${relPath}`);
+      if (!res.ok) {
+        throw new Error(`Fichier de thème manquant : ${relPath}`);
+      }
+      files[relPath] = new Uint8Array(await res.arrayBuffer());
+    })
+  );
+
+  cachedThemeFiles = files;
+  return files;
+}
+
+function escapeToml(str) {
+  return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+// URL Zola d'une page à partir de son chemin content/ (content/a-propos.md -> /a-propos/).
+function pageUrl(path) {
+  return "/" + path.replace(/^content\//, "").replace(/\.md$/, "") + "/";
+}
+
+// config.toml régénéré à chaque publication — jamais préservé/édité à la main. `title`
+// vient du front matter de content/_index.md (seul réglage éditable pour l'instant, voir
+// getBlogTitle/setBlogTitle), `standalonePages` sert à construire le menu de nav
+// (identique sur toutes les pages, voir templates/partials/header.html du thème).
+function buildConfigToml({ title, baseUrl, standalonePages }) {
+  const menuItems = [
+    { name: "Accueil", url: "/" },
+    ...standalonePages.map((p) => ({ name: p.title, url: pageUrl(p.path) })),
+    { name: "Blog", url: "/blog/" },
+  ];
+  const mainMenuToml = menuItems
+    .map((item) => `  { name = "${escapeToml(item.name)}", url = "${escapeToml(item.url)}" },`)
+    .join("\n");
+
+  return `title = "${escapeToml(title)}"
+base_url = "${escapeToml(baseUrl)}"
+compile_sass = true
+build_search_index = true
+
+taxonomies = [
+  { name = "categories" },
+  { name = "tags" },
+]
+
+[markdown.highlighting]
+theme = "nord"
+
+[search]
+index_format = "elasticlunr_json"
+
+[extra]
+# Pas encore éditable depuis le CMS (voir écran "Réglages du site" pour le titre du
+# blog, le seul réglage exposé pour l'instant).
+author_name = "Auteur du site"
+author_bio = "Ce site est propulsé par CMS Statique."
+sidebar_position = "left"
+list_images = true
+# footer.html boucle dessus sans le protéger d'un {% if %} — doit toujours être défini,
+# même vide (pas encore de réglage réseaux sociaux dans le CMS).
+social_links = []
+main_menu = [
+${mainMenuToml}
+]
 `;
+}
 
-function zolaScaffold(title, baseUrl) {
-  return {
-    "config.toml": `title = "${title}"\nbase_url = "${baseUrl}"\ncompile_sass = false\nbuild_search_index = false\n`,
-    "templates/macros.html": `{% macro nav(current_permalink) %}
-<nav>
-{% set home = get_section(path="_index.md", metadata_only=true) %}
-<a href="{{ home.permalink }}"{% if home.permalink == current_permalink %} aria-current="page"{% endif %}>Accueil</a>
-{% for p in home.pages %}<a href="{{ p.permalink }}"{% if p.permalink == current_permalink %} aria-current="page"{% endif %}>{{ p.title }}</a>
-{% endfor %}
-</nav>
-{% endmacro nav %}
-`,
-    "templates/index.html": `{% import "macros.html" as macros %}
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>{{ section.title | default(value=config.title) }}</title>
-<style>${ZOLA_TEMPLATE_STYLE}</style></head>
-<body>
-{{ macros::nav(current_permalink=section.permalink) }}
-<main><h1>{{ section.title }}</h1>{{ section.content | safe }}</main>
-</body>
-</html>
-`,
-    "templates/page.html": `{% import "macros.html" as macros %}
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>{{ page.title }}</title>
-<style>${ZOLA_TEMPLATE_STYLE}</style></head>
-<body>
-{{ macros::nav(current_permalink=page.permalink) }}
-<main><h1>{{ page.title }}</h1>{{ page.content | safe }}</main>
-</body>
-</html>
-`,
-    "content/_index.md": `+++\ntitle = "Accueil"\n+++\n\nSite en construction.\n`,
-  };
+// content/_index.md : front matter seul, plus de corps Markdown — la page d'accueil
+// n'est plus éditée via l'éditeur riche (voir templates/index.html du thème, réécrit
+// pour ce CMS). Le titre est le seul réglage éditable de l'accueil pour l'instant.
+function buildIndexStub(title) {
+  // Pas de sort_by="date" ici (contrairement à la section blog) : les pages standalone
+  // n'ont pas de date, Zola les exclurait silencieusement de section.pages sous un tri
+  // par date ("ignored: missing date... in a sorted section").
+  return `+++
+title = "${escapeToml(title)}"
+template = "index.html"
++++
+`;
+}
+
+// content/blog/_index.md : section blog, structurelle (pas encore éditable depuis le CMS).
+function buildBlogIndexStub() {
+  return `+++
+title = "Blog"
+sort_by = "date"
+template = "blog.html"
+page_template = "page.html"
+paginate_by = 10
+generate_feeds = true
++++
+`;
 }
 
 function decodeBase64Utf8(base64) {
@@ -63,11 +135,17 @@ function titleFromPath(path) {
 // Zola refuse tout fichier content/*.md sans front matter ("+++"/"---" en tête) — notre
 // éditeur riche n'en écrit pas. On l'ajoute automatiquement si absent, de façon invisible
 // pour l'utilisateur·rice (titre déduit du premier titre tapé, sinon du nom de fichier).
+// Un article de blog (content/blog/...) reçoit une date ; une page standalone reçoit le
+// gabarit générique du thème (voir themes/volks-typo/templates/standalone-page.html).
 function ensureFrontMatter(markdown, path) {
   if (/^(\+\+\+|---)\s*$/m.test(markdown.split("\n", 1)[0])) return markdown;
   const heading = markdown.match(/^#\s+(.+)$/m);
   const title = (heading ? heading[1] : titleFromPath(path)).replace(/"/g, '\\"');
-  return `+++\ntitle = "${title}"\n+++\n\n${markdown}`;
+  if (path.startsWith("content/blog/")) {
+    const date = new Date().toISOString().slice(0, 10);
+    return `+++\ntitle = "${title}"\ndate = ${date}\n+++\n\n${markdown}`;
+  }
+  return `+++\ntitle = "${title}"\ntemplate = "standalone-page.html"\n+++\n\n${markdown}`;
 }
 
 // Retire le front matter avant de charger le contenu dans l'éditeur riche — ce n'est pas
@@ -105,6 +183,8 @@ async function walkContentFiles(owner, repo, visit) {
 }
 
 // Parcourt récursivement content/ sur main et retourne { "content/x.md": "...", ... }.
+// Utilisé pour le *build* — inclut les _index.md (sections), contrairement à
+// listContentPages() qui les exclut de la liste "pages" éditable.
 async function fetchContentFiles(owner, repo) {
   const files = {};
   await walkContentFiles(owner, repo, async (path) => {
@@ -124,23 +204,24 @@ function extractTitle(markdown, path) {
   return match ? match[1].replace(/\\"/g, '"') : titleFromPath(path);
 }
 
-// Liste les pages existantes (chemin + titre) pour l'écran "pages du site" — l'accueil
-// (content/_index.md) toujours en premier, le reste trié par titre.
+// Liste les pages/articles existants (chemin + titre + type) pour l'écran "pages du
+// site" — exclut les _index.md (structurels : accueil et section blog, pas des pages
+// éditables via l'éditeur riche).
 async function listContentPages(owner, repo) {
   const pages = [];
   await walkContentFiles(owner, repo, async (path) => {
+    if (path.endsWith("_index.md")) return;
     const file = await api.getFile(owner, repo, path, "main");
-    pages.push({ path, title: extractTitle(decodeBase64Utf8(file.content), path) });
+    const type = path.startsWith("content/blog/") ? "post" : "page";
+    pages.push({ path, title: extractTitle(decodeBase64Utf8(file.content), path), type });
   });
-  pages.sort((a, b) =>
-    a.path === "content/_index.md" ? -1 : b.path === "content/_index.md" ? 1 : a.title.localeCompare(b.title)
-  );
+  pages.sort((a, b) => a.title.localeCompare(b.title));
   return pages;
 }
 
 // Transforme un texte libre en identifiant de fichier/dépôt (minuscules, sans accents,
 // tirets). Utilisé à la fois pour le nom de dépôt à la création d'un site et pour le
-// chemin de fichier d'une nouvelle page.
+// chemin de fichier d'une nouvelle page/article.
 function slugify(raw) {
   return raw
     .trim()
@@ -152,22 +233,50 @@ function slugify(raw) {
     .replace(/^-|-$/g, "");
 }
 
-// Choisit un chemin content/<slug>.md libre pour une nouvelle page, en suffixant
-// -2, -3... si le titre saisi donne un slug déjà utilisé par une autre page.
-function nextAvailablePagePath(title, existingPaths) {
+// Choisit un chemin <dirPrefix><slug>.md libre pour une nouvelle page/article, en
+// suffixant -2, -3... si le titre saisi donne un slug déjà utilisé. dirPrefix distingue
+// page standalone ("content/") et article de blog ("content/blog/").
+function nextAvailablePagePath(title, existingPaths, dirPrefix = "content/") {
   const base = slugify(title) || "page";
-  let path = `content/${base}.md`;
+  let path = `${dirPrefix}${base}.md`;
   let n = 2;
   while (existingPaths.includes(path)) {
-    path = `content/${base}-${n}.md`;
+    path = `${dirPrefix}${base}-${n}.md`;
     n += 1;
   }
   return path;
 }
 
-// Écrit un fichier sur la branche pages, en récupérant son sha existant si besoin
-// (sinon Forgejo refuse l'écrasement — même logique que pour la branche main).
-async function publishFile(owner, repo, path, content) {
+// Titre actuel du blog (front matter de content/_index.md), pour pré-remplir l'écran
+// "Réglages du site". Nom du dépôt par défaut si le fichier n'existe pas encore.
+async function getBlogTitle(owner, repo) {
+  try {
+    const file = await api.getFile(owner, repo, "content/_index.md", "main");
+    return extractTitle(decodeBase64Utf8(file.content), "content/_index.md");
+  } catch (err) {
+    if (err.status === 404) return repo;
+    throw err;
+  }
+}
+
+async function setBlogTitle(owner, repo, title) {
+  let sha = null;
+  try {
+    const existing = await api.getFile(owner, repo, "content/_index.md", "main", { silent404: true });
+    sha = existing.sha;
+  } catch (err) {
+    if (err.status !== 404) throw err;
+  }
+  await api.saveFile(owner, repo, "content/_index.md", buildIndexStub(title), {
+    sha,
+    message: "Mise à jour du titre du blog",
+  });
+}
+
+// Écrit un fichier (octets bruts — sortie du build Zola, texte et binaire mélangés) sur
+// la branche pages, en récupérant son sha existant si besoin (sinon Forgejo refuse
+// l'écrasement — même logique que pour la branche main).
+async function publishFile(owner, repo, path, bytes) {
   let sha = null;
   try {
     const existing = await api.getFile(owner, repo, path, "pages", { silent404: true });
@@ -175,15 +284,29 @@ async function publishFile(owner, repo, path, content) {
   } catch (err) {
     if (err.status !== 404) throw err;
   }
-  await api.saveFile(owner, repo, path, content, { sha, branch: "pages", message: "Publication du site" });
+  await api.saveFileBytes(owner, repo, path, bytes, { sha, branch: "pages", message: "Publication du site" });
 }
 
-// Récupère tout le contenu Markdown actuel + le gabarit fixe, buildit avec Zola (en
+// Récupère tout le contenu Markdown actuel + le thème vendoré, buildit avec Zola (en
 // mémoire, dans le navigateur), et publie chaque fichier produit sur la branche pages.
 async function rebuildAndPublishSite(owner, repo) {
   const contentFiles = await fetchContentFiles(owner, repo);
-  const scaffold = zolaScaffold(repo, api.pagesUrl(owner, repo));
-  const files = { ...scaffold, ...contentFiles };
+  const themeFiles = await loadThemeFiles(CURRENT_THEME);
+
+  const title = contentFiles["content/_index.md"]
+    ? extractTitle(contentFiles["content/_index.md"], "content/_index.md")
+    : repo;
+  const standalonePages = Object.keys(contentFiles)
+    .filter((path) => !path.endsWith("_index.md") && !path.startsWith("content/blog/"))
+    .map((path) => ({ path, title: extractTitle(contentFiles[path], path) }));
+
+  const files = {
+    ...themeFiles,
+    "config.toml": buildConfigToml({ title, baseUrl: api.pagesUrl(owner, repo), standalonePages }),
+    ...contentFiles,
+  };
+  if (!files["content/_index.md"]) files["content/_index.md"] = buildIndexStub(repo);
+  if (!files["content/blog/_index.md"]) files["content/blog/_index.md"] = buildBlogIndexStub();
 
   let output;
   try {
@@ -193,8 +316,8 @@ async function rebuildAndPublishSite(owner, repo) {
     throw err;
   }
 
-  for (const [path, content] of Object.entries(output)) {
-    await publishFile(owner, repo, path, content);
+  for (const [path, bytes] of Object.entries(output)) {
+    await publishFile(owner, repo, path, bytes);
   }
 
   return { pageCount: Object.keys(output).length };

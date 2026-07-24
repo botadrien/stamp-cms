@@ -1,0 +1,68 @@
+<div class="sidebar-content">
+  <!-- Bio Section -->
+  <section class="bio-section">
+    <div class="avatar-container">
+      {% if config.extra.author_avatar %}
+        <img src="{{ config.extra.author_avatar }}" alt="{{ config.extra.author_name }}" class="avatar" />
+      {% else %}
+        <div class="avatar-placeholder">
+          <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Circular mask to contain the silhouette -->
+            <defs>
+              <clipPath id="circleClipSidebar">
+                <circle cx="40" cy="40" r="39" />
+              </clipPath>
+            </defs>
+            <g clip-path="url(#circleClipSidebar)">
+              <!-- Head (oval shape) -->
+              <ellipse cx="40" cy="28" rx="13" ry="15" fill="currentColor"/>
+              <!-- Neck -->
+              <path d="M33 40 Q33 44 35 46 L45 46 Q47 44 47 40 Z" fill="currentColor"/>
+              <!-- Shoulders -->
+              <path d="M35 46 Q28 48 22 54 Q16 60 14 70 L14 80 L66 80 L66 70 Q64 60 58 54 Q52 48 45 46 Z" fill="currentColor"/>
+            </g>
+          </svg>
+        </div>
+      {% endif %}
+    </div>
+    <h3 class="author-name">{{ config.extra.author_name }}</h3>
+    <p class="bio-text">{{ config.extra.author_bio }}</p>
+  </section>
+
+  <!-- Recent Posts Section -->
+  {% set blog = get_section(path="blog/_index.md") %}
+  {% if blog and blog.pages | length > 0 %}
+    <section class="recent-posts">
+      <h3 class="section-title">Recent Posts</h3>
+      <ul class="post-list">
+        {% for page in blog.pages | slice(end=5) %}
+          <li class="post-item">
+            <a href="{{ page.permalink }}" class="post-link">
+              {{ page.title }}
+            </a>
+            <time class="post-date" datetime="{{ page.date }}">
+              {{ page.date | date(format="%b %-d, %Y") }}
+            </time>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <!-- Categories Section -->
+  {% set cats = get_taxonomy(kind="categories") %}
+  {% if cats and cats.items | length > 0 %}
+    <section class="categories">
+      <h3 class="section-title">Categories</h3>
+      <ul class="category-list">
+        {% for term in cats.items %}
+          <li class="category-item">
+            <a href="{{ term.permalink }}" class="category-link">
+              {{ term.name }}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+</div>

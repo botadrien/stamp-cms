@@ -41,8 +41,9 @@ test("le bouton Précédent navigue dans l'appli plutôt que vers le flow OAuth"
   await expect(page).toHaveURL(new RegExp(`#/${seed.repoOwner}/${seed.repoName}$`));
 
   // Écran éditeur (page tout juste ajoutée, pas encore publiée)
-  await page.locator("#newPageTitle").fill(`nav-test-${Date.now()}`);
-  await page.getByRole("button", { name: "Créer" }).click();
+  const addPageCard = page.locator(".card", { has: page.locator("#newPageTitle") });
+  await addPageCard.locator("#newPageTitle").fill(`nav-test-${Date.now()}`);
+  await addPageCard.getByRole("button", { name: "Créer" }).click();
   await expect(page.locator("#editorMount [contenteditable=true]")).toBeVisible({ timeout: 10_000 });
   await expect(page).toHaveURL(new RegExp(`#/${seed.repoOwner}/${seed.repoName}/edit/`));
 

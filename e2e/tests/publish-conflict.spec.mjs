@@ -35,8 +35,9 @@ test("publier une page modifiée entre-temps affiche un conflit, pas une erreur 
   await repoItem.getByRole("button", { name: "Ouvrir" }).click();
 
   const testPath = "content/conflict-test.md";
-  await page.locator("#newPageTitle").fill("conflict-test");
-  await page.getByRole("button", { name: "Créer" }).click();
+  const addPageCard = page.locator(".card", { has: page.locator("#newPageTitle") });
+  await addPageCard.locator("#newPageTitle").fill("conflict-test");
+  await addPageCard.getByRole("button", { name: "Créer" }).click();
 
   // Première publication : crée le fichier.
   const editor = page.locator("#editorMount [contenteditable=true]");

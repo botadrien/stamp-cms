@@ -1,0 +1,23 @@
+{# Gabarit générique pour une page standalone créée via le CMS (ex. "À propos",
+   "Contact") — contrairement à about.html/contact.html du thème d'origine, qui sont
+   chacun écrits pour UNE page précise (bio auteur, formulaire de contact), celui-ci doit
+   convenir à n'importe quel titre saisi par l'utilisateur·rice. Voir ensureFrontMatter()
+   dans site-builder.js qui force `template = "standalone-page.html"` sur toute page hors
+   content/blog/. #}
+{% extends "base.html" %}
+{% import "macros/seo.html" as seo %}
+
+{% block seo %}{{ seo::seo(title=page.title ~ " | " ~ config.title) }}{% endblock %}
+
+{% block content %}
+  <div class="standalone-page">
+    <header class="page-header">
+      <h1 class="page-title">{{ page.title }}</h1>
+      <hr class="page-rule" />
+    </header>
+
+    <div class="content-section">
+      {{ page.content | safe }}
+    </div>
+  </div>
+{% endblock %}

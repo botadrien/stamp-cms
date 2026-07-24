@@ -1,0 +1,12 @@
+{% macro seo(title, description="", image="") %}
+<title>{{ title }}</title>
+<meta name="description" content="{{ description }}" />
+<meta property="og:title" content="{{ title }}" />
+<meta property="og:description" content="{{ description }}" />
+<meta property="og:type" content="website" />
+{% if image %}
+<meta property="og:image" content="{{ get_url(path=image) | safe }}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="{{ get_url(path=image) | safe }}" />
+{% endif %}
+{% endmacro seo %}

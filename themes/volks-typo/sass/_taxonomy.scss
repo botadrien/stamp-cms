@@ -1,0 +1,172 @@
+// Taxonomy pages (categories / tags)
+// Ported from astro-theme src/pages/categories.astro and
+// src/pages/categories/[category].astro. Class names kept identical to the
+// Astro source; rules scoped under their page wrappers because the original
+// Astro scoped styles defined the same class names with different values.
+// Post listing styles (.posts-list, .post-item, .read-more, .pagination*)
+// live in _blog-list.scss (shared via the post_card macro) and are not
+// duplicated here.
+
+// Shared page rule (identical in both source pages)
+.page-rule {
+  height: 4px;
+  background-color: var(--color-accent);
+  border: none;
+  width: 120px;
+  margin: 0 auto;
+}
+
+// ---- Categories / Tags index (taxonomy_list.html) ----
+.categories-page {
+  max-width: 100%;
+
+  .page-header {
+    text-align: center;
+    margin-bottom: calc(var(--grid-unit) * 6);
+  }
+
+  .page-title {
+    font-family: var(--font-heading-primary);
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: calc(var(--grid-unit) * 2);
+  }
+
+  .page-description {
+    font-size: 1.125rem;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    max-width: 600px;
+    margin: 0 auto calc(var(--grid-unit) * 3);
+  }
+}
+
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: calc(var(--grid-unit) * 2);
+}
+
+.category-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.category-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.category-link {
+  display: block;
+  padding: calc(var(--grid-unit) * 2);
+  text-decoration: none;
+  color: inherit;
+}
+
+.category-title {
+  font-family: var(--font-heading-secondary);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: calc(var(--grid-unit) / 2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-primary);
+  transition: color 0.2s ease;
+}
+
+.category-link:hover .category-title {
+  color: var(--color-accent);
+}
+
+.category-count {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.no-categories {
+  text-align: center;
+  padding: calc(var(--grid-unit) * 6);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+// ---- Single category / tag (taxonomy_single.html) ----
+.category-page {
+  max-width: 800px;
+  margin: 0 auto;
+
+  .page-header {
+    text-align: center;
+    margin-bottom: calc(var(--grid-unit) * 8);
+  }
+
+  .page-title {
+    font-family: var(--font-heading-primary);
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.1;
+    margin-bottom: calc(var(--grid-unit) * 3);
+  }
+
+  .page-description {
+    font-size: 1.125rem;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    margin-bottom: calc(var(--grid-unit) * 4);
+  }
+}
+
+.page-navigation {
+  text-align: center;
+  padding-top: calc(var(--grid-unit) * 4);
+  border-top: 1px solid var(--color-border);
+}
+
+.back-link {
+  font-family: var(--font-heading-secondary);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-accent);
+  padding: calc(var(--grid-unit)) calc(var(--grid-unit) * 2);
+  border: 2px solid var(--color-accent);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.back-link:hover,
+.back-link:focus {
+  background-color: var(--color-accent);
+  color: white;
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .categories-page .page-title {
+    font-size: 2.5rem;
+  }
+
+  .category-page .page-title {
+    font-size: 2.5rem;
+  }
+
+  .categories-grid {
+    grid-template-columns: 1fr;
+  }
+}

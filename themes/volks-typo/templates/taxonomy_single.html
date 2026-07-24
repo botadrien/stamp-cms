@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "macros/post_card.html" as post_card %}
+
+{% block seo %}{{ seo::seo(title=term.name ~ " | " ~ config.title, description="All posts in the " ~ term.name ~ " " ~ taxonomy.name) }}{% endblock %}
+
+{% block content %}
+<div class="category-page">
+  <header class="page-header">
+    <h1 class="page-title">{{ term.name }}</h1>
+    <p class="page-description">
+      {{ term.page_count }} article{% if term.page_count != 1 %}s{% endif %}
+      {% if taxonomy.name == "tags" %}with this tag{% else %}in this category{% endif %}
+    </p>
+    <hr class="page-rule" />
+  </header>
+
+  <div class="posts-list">
+    {% for page in paginator.pages %}
+    {{ post_card::card(page=page, show_image=config.extra.list_images | default(value=true)) }}
+    {% endfor %}
+  </div>
+
+  {% if paginator.number_pagers > 1 %}
+  <nav class="pagination">
+    {% if paginator.previous %}
+    <a href="{{ paginator.previous | safe }}" class="pagination-link pagination-prev">← Newer</a>
+    {% endif %}
+    <span class="pagination-info">Page {{ paginator.current_index }} of {{ paginator.number_pagers }}</span>
+    {% if paginator.next %}
+    <a href="{{ paginator.next | safe }}" class="pagination-link pagination-next">Older →</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  <div class="page-navigation">
+    {% if taxonomy.name == "tags" %}
+    <a href="{{ get_url(path='tags', trailing_slash=true) }}" class="back-link">← Back to All Tags</a>
+    {% else %}
+    <a href="{{ get_url(path='categories', trailing_slash=true) }}" class="back-link">← Back to All Categories</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock content %}

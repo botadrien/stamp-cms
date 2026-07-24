@@ -1,0 +1,26 @@
+{% import "macros/seo.html" as seo %}{% import "macros/icon.html" as ico %}<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="{{ get_url(path=config.extra.favicon | default(value='favicon.svg')) }}" />
+    <link rel="stylesheet" href="{{ get_url(path='main.css', cachebust=true) }}" />
+    <link rel="alternate" type="application/rss+xml" title="{{ config.title }}" href="{{ get_url(path='blog/rss.xml') }}" />
+    <script src="{{ get_url(path='theme-init.js', cachebust=true) }}"></script>
+    {% block seo %}{{ seo::seo(title=config.title, description=config.description) }}{% endblock %}
+  </head>
+  <body>
+    <div class="site-wrapper">
+      {% include "partials/header.html" %}
+      <main class="main-content {% block sidebar_class %}with-sidebar sidebar-{{ config.extra.sidebar_position | default(value="left") }}{% endblock %}">
+        {% block sidebar %}<aside class="sidebar">{% include "partials/sidebar.html" %}</aside>{% endblock %}
+        <div class="content">
+          {% block content %}{% endblock %}
+        </div>
+      </main>
+      {% include "partials/footer.html" %}
+    </div>
+    <script>window.VOLKS_SEARCH_URL = "{{ get_url(path='search/', trailing_slash=true) }}";</script>
+    <script src="{{ get_url(path='search.js', cachebust=true) }}"></script>
+  </body>
+</html>

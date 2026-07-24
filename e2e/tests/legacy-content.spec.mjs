@@ -58,8 +58,9 @@ test("une page existante sans front matter n'empêche pas de publier une autre p
   await expect(repoItem).toBeVisible({ timeout: 10_000 });
   await repoItem.getByRole("button", { name: "Ouvrir" }).click();
 
-  await page.locator("#newPageTitle").fill("legacy-content-test");
-  await page.getByRole("button", { name: "Créer" }).click();
+  const addPageCard = page.locator(".card", { has: page.locator("#newPageTitle") });
+  await addPageCard.locator("#newPageTitle").fill("legacy-content-test");
+  await addPageCard.getByRole("button", { name: "Créer" }).click();
 
   const editor = page.locator("#editorMount [contenteditable=true]");
   await editor.click();

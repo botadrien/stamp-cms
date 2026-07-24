@@ -13,8 +13,11 @@ async function loadWasmModule(wasmUrl) {
   return cachedWasmModule;
 }
 
-// { "config.toml": "...", "content/_index.md": "...", "templates/index.html": "..." }
-// -> arbre de Directory/File imbriqués, tel qu'attendu par PreopenDirectory.
+// { "config.toml": "...", "content/_index.md": "...", "static/font.woff2": Uint8Array }
+// -> arbre de Directory/File imbriqués, tel qu'attendu par PreopenDirectory. Une valeur
+// chaîne est encodée en UTF-8 (contenu qu'on génère nous-mêmes : config, contenu,
+// templates) ; un Uint8Array est utilisé tel quel (assets binaires du thème — polices,
+// icônes — dont l'encodage ne doit pas être réinterprété).
 function buildInputTree(files) {
   const root = new Map();
   for (const [path, content] of Object.entries(files)) {
@@ -29,14 +32,17 @@ function buildInputTree(files) {
       }
       dir = entry.contents;
     }
-    dir.set(parts[parts.length - 1], new File(new TextEncoder().encode(content)));
+    const bytes = content instanceof Uint8Array ? content : new TextEncoder().encode(content);
+    dir.set(parts[parts.length - 1], new File(bytes));
   }
   return root;
 }
 
 // Aplatit récursivement un Directory (typiquement le sous-dossier "public" produit par
-// Zola) en { "index.html": "...", "sub/page.html": "...", ... }. Ignore les fichiers
-// binaires non-UTF8 valides plutôt que de planter (pas d'images générées pour l'instant).
+// Zola) en { "index.html": Uint8Array, "sub/page.html": Uint8Array, ... }. Toujours des
+// octets bruts, jamais décodés : la sortie mélange du HTML/CSS généré (texte) et des
+// assets statiques recopiés tels quels par Zola (polices, icônes) — décoder en UTF-8
+// corromprait ces derniers.
 function flattenOutputTree(dir, prefix = "") {
   const out = {};
   for (const [name, entry] of dir.contents) {
@@ -44,7 +50,7 @@ function flattenOutputTree(dir, prefix = "") {
     if (entry instanceof Directory) {
       Object.assign(out, flattenOutputTree(entry, path));
     } else if (entry instanceof File) {
-      out[path] = new TextDecoder("utf-8", { fatal: false }).decode(entry.data);
+      out[path] = entry.data;
     }
   }
   return out;

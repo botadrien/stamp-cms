@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "macros/seo.html" as seo %}
+
+{% block seo %}{{ seo::seo(title="Contact | " ~ config.title, description="Connect to discuss design philosophy, typography, or the aesthetic tension between Bauhaus modernism and monumental design.") }}{% endblock %}
+
+{% block content %}
+  <div class="contact-page">
+    <header class="page-header">
+      <h1 class="page-title">{{ page.title }}</h1>
+      <hr class="page-rule" />
+    </header>
+
+    <div class="contact-content">
+      <div class="contact-info">
+        {{ page.content | safe }}
+
+        {% if config.extra.social_links %}
+        <div class="contact-links">
+          {% for s in config.extra.social_links %}
+          <a href="{{ s.url }}" class="contact-link"{% if not s.url is starting_with("mailto:") %} target="_blank" rel="noopener"{% endif %}>
+            <span class="contact-label">{{ s.name }}</span>
+            {{ s.url | replace(from="mailto:", to="") }}
+          </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

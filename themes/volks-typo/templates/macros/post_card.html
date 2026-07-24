@@ -1,0 +1,35 @@
+{% macro card(page, show_image=true) %}
+<article class="post-item">
+  {% if show_image and page.extra.image %}
+  <a href="{{ page.permalink | safe }}" class="post-card-image" tabindex="-1" aria-hidden="true">
+    <img src="{{ get_url(path=page.extra.image) | safe }}" alt="" loading="lazy" />
+  </a>
+  {% endif %}
+  <h2 class="post-title">
+    <a href="{{ page.permalink | safe }}">{{ page.title }}</a>
+  </h2>
+
+  <div class="post-meta">
+    <span class="post-byline">
+      <time class="post-date" datetime="{{ page.date }}">{{ page.date | date(format='%B %-d, %Y') }}</time>{% if page.extra.author %}<span class="post-author"> by {{ page.extra.author }}</span>{% endif %}
+    </span>
+
+    <span class="post-reading-time">{{ page.reading_time }} min read</span>
+
+    {% if page.taxonomies.categories %}
+    <div class="post-categories">
+      {% for category in page.taxonomies.categories %}
+      <a href="{{ get_taxonomy_url(kind='categories', name=category) | safe }}" class="category">{{ category }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% set excerpt = page.extra.excerpt | default(value=page.summary | default(value="")) %}
+  {% if excerpt %}
+  <p class="post-excerpt">{{ excerpt | safe }}</p>
+  {% endif %}
+
+  <a href="{{ page.permalink | safe }}" class="read-more">Read More →</a>
+</article>
+{% endmacro card %}

@@ -44,6 +44,10 @@ function editorHash(owner, name, path) {
   return `${siteHash(owner, name)}/edit/${encodeURIComponent(path)}`;
 }
 
+function settingsHash(owner, name) {
+  return `${siteHash(owner, name)}/settings`;
+}
+
 function parseHash(hash) {
   const clean = (hash || "").replace(/^#\/?/, "");
   if (!clean) return { view: "dashboard" };
@@ -53,6 +57,9 @@ function parseHash(hash) {
   if (!owner || !repo) return { view: "dashboard" };
   if (segments[2] === "edit" && segments[3]) {
     return { view: "editor", owner, repo, path: decodeURIComponent(segments[3]) };
+  }
+  if (segments[2] === "settings") {
+    return { view: "settings", owner, repo };
   }
   return { view: "sitePages", owner, repo };
 }
@@ -69,6 +76,9 @@ async function renderRoute() {
   } else if (route.view === "sitePages") {
     currentRepo = { owner: route.owner, name: route.repo };
     await renderSitePages(route.owner, route.repo);
+  } else if (route.view === "settings") {
+    currentRepo = { owner: route.owner, name: route.repo };
+    await renderSiteSettings(route.owner, route.repo);
   } else {
     currentRepo = { owner: route.owner, name: route.repo };
     await openEditor(route.owner, route.repo, route.path);
@@ -146,10 +156,12 @@ async function createSite() {
     await api.createBranch(owner, repo.name, "pages", repo.default_branch);
     await api.createPagesWebhook(owner, repo.name);
 
-    const scaffold = zolaScaffold(repo.name, api.pagesUrl(owner, repo.name));
-    for (const [path, content] of Object.entries(scaffold)) {
-      await api.saveFile(owner, repo.name, path, content, { message: "Site initial" });
-    }
+    await api.saveFile(owner, repo.name, "content/_index.md", buildIndexStub(repo.name), {
+      message: "Site initial",
+    });
+    await api.saveFile(owner, repo.name, "content/blog/_index.md", buildBlogIndexStub(), {
+      message: "Site initial",
+    });
 
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
     await rebuildAndPublishSite(owner, repo.name);
@@ -165,6 +177,22 @@ function openRepo(owner, name) {
   window.location.hash = siteHash(owner, name);
 }
 
+function renderPageGroup(title, entries) {
+  if (!entries.length) return "";
+  return `
+    <h3 style="margin-top:24px;">${title}</h3>
+    ${entries
+      .map(
+        (p) => `
+      <div class="repo-item">
+        <div>${p.title}</div>
+        <button class="secondary" onclick='editPage(${JSON.stringify(p.path)})'>Modifier</button>
+      </div>`
+      )
+      .join("")}
+  `;
+}
+
 async function renderSitePages(owner, name) {
   RichEditor.unmount();
   appEl.innerHTML = `
@@ -175,6 +203,8 @@ async function renderSitePages(owner, name) {
         <a href="${api.pagesUrl(owner, name)}" target="_blank" rel="noopener">
           Voir le site publié &#8599;
         </a>
+        &middot;
+        <a href="${settingsHash(owner, name)}">Réglages du site</a>
       </p>
       <div id="pagesListStatus">${renderStatus("Chargement des pages…", "info")}</div>
       <div id="pagesList"></div>
@@ -183,8 +213,15 @@ async function renderSitePages(owner, name) {
       <h2>Ajouter une page</h2>
       <label for="newPageTitle">Titre de la page</label>
       <input id="newPageTitle" placeholder="À propos" />
-      <button onclick="addPage()">Créer</button>
+      <button onclick="addPage('page')">Créer</button>
       <div id="addPageStatus"></div>
+    </div>
+    <div class="card">
+      <h2>Ajouter un article</h2>
+      <label for="newPostTitle">Titre de l'article</label>
+      <input id="newPostTitle" placeholder="Mon premier article" />
+      <button onclick="addPage('post')">Créer</button>
+      <div id="addPostStatus"></div>
     </div>
   `;
 
@@ -192,35 +229,81 @@ async function renderSitePages(owner, name) {
     const pages = await listContentPages(owner, name);
     renderSitePages.pages = pages;
     document.getElementById("pagesListStatus").innerHTML = "";
-    document.getElementById("pagesList").innerHTML = pages
-      .map(
-        (p) => `
-      <div class="repo-item">
-        <div>${p.title}</div>
-        <button class="secondary" onclick='editPage(${JSON.stringify(p.path)})'>Modifier</button>
-      </div>`
-      )
-      .join("");
+    const standalonePages = pages.filter((p) => p.type === "page");
+    const posts = pages.filter((p) => p.type === "post");
+    document.getElementById("pagesList").innerHTML =
+      renderPageGroup("Pages", standalonePages) + renderPageGroup("Articles de blog", posts) ||
+      renderStatus("Aucune page pour l'instant.", "info");
   } catch (err) {
     renderSitePages.pages = [];
     document.getElementById("pagesListStatus").innerHTML = renderStatus(err.message, "error");
   }
 }
 
-function addPage() {
-  const title = document.getElementById("newPageTitle").value.trim();
-  const statusEl = document.getElementById("addPageStatus");
+// kind: "page" (standalone, content/) ou "post" (article de blog, content/blog/).
+function addPage(kind) {
+  const inputId = kind === "post" ? "newPostTitle" : "newPageTitle";
+  const statusId = kind === "post" ? "addPostStatus" : "addPageStatus";
+  const dirPrefix = kind === "post" ? "content/blog/" : "content/";
+
+  const title = document.getElementById(inputId).value.trim();
+  const statusEl = document.getElementById(statusId);
   if (!title) {
-    statusEl.innerHTML = renderStatus("Choisis un titre pour la page.", "error");
+    statusEl.innerHTML = renderStatus("Choisis un titre.", "error");
     return;
   }
   const existingPaths = (renderSitePages.pages || []).map((p) => p.path);
-  const path = nextAvailablePagePath(title, existingPaths);
+  const path = nextAvailablePagePath(title, existingPaths, dirPrefix);
   window.location.hash = editorHash(currentRepo.owner, currentRepo.name, path);
 }
 
 function editPage(path) {
   window.location.hash = editorHash(currentRepo.owner, currentRepo.name, path);
+}
+
+async function renderSiteSettings(owner, name) {
+  RichEditor.unmount();
+  appEl.innerHTML = `
+    <div class="card">
+      <button class="secondary" onclick='window.location.hash = ${JSON.stringify(siteHash(owner, name))}'>&larr; Retour aux pages</button>
+      <h2 style="margin-top:16px;">Réglages du site</h2>
+      <div id="settingsLoadStatus">${renderStatus("Chargement…", "info")}</div>
+      <div id="settingsForm" style="display:none;">
+        <label for="blogTitle">Titre du blog</label>
+        <input id="blogTitle" />
+        <button onclick="saveBlogTitle()">Enregistrer</button>
+        <div id="settingsStatus"></div>
+      </div>
+    </div>
+  `;
+
+  try {
+    const title = await getBlogTitle(owner, name);
+    document.getElementById("settingsLoadStatus").innerHTML = "";
+    document.getElementById("settingsForm").style.display = "";
+    document.getElementById("blogTitle").value = title;
+  } catch (err) {
+    document.getElementById("settingsLoadStatus").innerHTML = renderStatus(err.message, "error");
+  }
+}
+
+async function saveBlogTitle() {
+  const title = document.getElementById("blogTitle").value.trim();
+  const statusEl = document.getElementById("settingsStatus");
+  if (!title) {
+    statusEl.innerHTML = renderStatus("Choisis un titre.", "error");
+    return;
+  }
+
+  statusEl.innerHTML = renderStatus("Enregistrement…", "info");
+  try {
+    await setBlogTitle(currentRepo.owner, currentRepo.name, title);
+    statusEl.innerHTML = renderStatus("Génération du site…", "info");
+    await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
+    statusEl.innerHTML = renderStatus("Publié avec succès sur Codeberg ✓", "success");
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
+  }
 }
 
 // Charge une page existante, ou prépare un éditeur vide si elle n'existe pas encore (cas

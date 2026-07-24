@@ -1,0 +1,7 @@
+{# Renders a monochrome icon as a mask-image span (inherits currentColor).
+   `name` is a bundled icon under static/icons/ (e.g. "github") or a custom
+   path starting with "/" (e.g. "/icons/gitea.svg"). #}
+{% macro mask(name, class="") %}
+{%- if name is starting_with("/") %}{% set url = get_url(path=name) %}{% else %}{% set url = get_url(path="icons/" ~ name ~ ".svg") %}{% endif -%}
+<span class="{{ class }}" style="-webkit-mask-image: url('{{ url | safe }}'); mask-image: url('{{ url | safe }}');" aria-hidden="true"></span>
+{%- endmacro mask %}

@@ -15,6 +15,17 @@ function friendlyApiError(status) {
   return "Une erreur est survenue, réessaie.";
 }
 
+// btoa(String.fromCharCode(...bytes)) plante sur de gros fichiers (dépassement de la
+// pile d'appel) — on construit la chaîne binaire par blocs.
+function bytesToBase64(bytes) {
+  const chunkSize = 8192;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 class ForgejoApi {
   constructor(token) {
     this.token = token;
@@ -112,6 +123,24 @@ class ForgejoApi {
   async saveFile(owner, repo, path, content, { sha, message, branch = "main" } = {}) {
     const body = {
       content: btoa(unescape(encodeURIComponent(content))), // encode UTF-8 -> base64
+      message: message || (sha ? `Mise à jour de ${path}` : `Création de ${path}`),
+      branch,
+    };
+    if (sha) body.sha = sha;
+
+    return this._request(`/repos/${owner}/${repo}/contents/${path}`, {
+      method: sha ? "PUT" : "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  // Comme saveFile(), mais pour des octets bruts (Uint8Array) plutôt qu'une chaîne — sortie
+  // du build Zola, qui mélange HTML/CSS générés et assets binaires (polices, icônes)
+  // recopiés tels quels. L'aller-retour encodeURIComponent/unescape de saveFile() suppose
+  // une chaîne UTF-8 et corromprait ces derniers.
+  async saveFileBytes(owner, repo, path, bytes, { sha, message, branch = "main" } = {}) {
+    const body = {
+      content: bytesToBase64(bytes),
       message: message || (sha ? `Mise à jour de ${path}` : `Création de ${path}`),
       branch,
     };

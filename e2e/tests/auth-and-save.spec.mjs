@@ -43,8 +43,11 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   await repoItem.getByRole("button", { name: "Ouvrir" }).click();
 
   const testPath = "content/e2e-test.md";
-  await page.locator("#newPageTitle").fill("e2e-test");
-  await page.getByRole("button", { name: "Créer" }).click();
+  // Deux formulaires "Créer" sur cet écran (page standalone / article de blog) —
+  // scoper au bloc contenant le champ titre de la page pour lever l'ambiguïté.
+  const addPageCard = page.locator(".card", { has: page.locator("#newPageTitle") });
+  await addPageCard.locator("#newPageTitle").fill("e2e-test");
+  await addPageCard.getByRole("button", { name: "Créer" }).click();
 
   const text = `Écrit automatiquement le ${new Date().toISOString()} — accents: éàçù.`;
   const editor = page.locator("#editorMount [contenteditable=true]");
@@ -75,6 +78,6 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   const pageFile = await pageRes.json();
   const html = Buffer.from(pageFile.content, "base64").toString("utf-8");
   expect(html).toContain(text);
-  expect(html).toContain("<nav>");
+  expect(html).toContain('class="main-navigation"');
   expect(html).toContain(">Accueil<");
 });

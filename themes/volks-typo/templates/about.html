@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% import "macros/seo.html" as seo %}
+{% import "macros/icon.html" as ico %}
+
+{% block seo %}{{ seo::seo(title="About | " ~ config.title, description="Learn more about " ~ config.extra.author_name ~ " and the " ~ config.title ~ " blog") }}{% endblock %}
+
+{% block content %}
+  <div class="about-page">
+    <header class="page-header">
+      <h1 class="page-title">{{ page.title }}</h1>
+      <hr class="page-rule" />
+    </header>
+
+    <div class="author-section">
+      <div class="author-avatar">
+        {% if config.extra.author_avatar %}
+          <img src="{{ config.extra.author_avatar }}" alt="{{ config.extra.author_name }}" />
+        {% else %}
+          <div class="avatar-placeholder">
+            <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Circular mask to contain the silhouette -->
+              <defs>
+                <clipPath id="circleClip">
+                  <circle cx="40" cy="40" r="39" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#circleClip)">
+                <!-- Head (oval shape) -->
+                <ellipse cx="40" cy="28" rx="13" ry="15" fill="currentColor"/>
+                <!-- Neck -->
+                <path d="M33 40 Q33 44 35 46 L45 46 Q47 44 47 40 Z" fill="currentColor"/>
+                <!-- Shoulders -->
+                <path d="M35 46 Q28 48 22 54 Q16 60 14 70 L14 80 L66 80 L66 70 Q64 60 58 54 Q52 48 45 46 Z" fill="currentColor"/>
+              </g>
+            </svg>
+          </div>
+        {% endif %}
+      </div>
+      <h2 class="author-name">{{ config.extra.author_name }}</h2>
+      <p class="author-bio">{{ config.extra.author_bio }}</p>
+
+      {% if config.extra.social_links %}
+      <div class="social-links">
+        {% for s in config.extra.social_links %}
+        <a href="{{ s.url }}" aria-label="{{ s.name }}"{% if not s.url is starting_with("mailto:") %} target="_blank" rel="noopener noreferrer"{% endif %}>
+          {{ ico::mask(name=s.icon, class="social-icon") }}
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="content-section">
+      {{ page.content | safe }}
+    </div>
+  </div>
+{% endblock %}

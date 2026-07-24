@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block seo %}{{ seo::seo(title=page.title, description=page.description | default(value=page.extra.excerpt | default(value=config.description)), image=page.extra.image | default(value="")) }}{% endblock %}
+
+{% block content %}
+<article class="blog-post">
+  <header class="post-header">
+    <h1 class="post-title">{{ page.title }}</h1>
+
+    <div class="post-meta">
+      <span class="post-byline">
+        <time class="post-date" datetime="{{ page.date }}">{{ page.date | date(format='%B %-d, %Y') }}</time>{% if page.extra.author %}<span class="post-author"> by {{ page.extra.author }}</span>{% endif %}
+      </span>
+
+      <span class="post-reading-time">{{ page.reading_time }} min read</span>
+
+      {% if page.taxonomies.categories %}
+      <div class="post-categories">
+        {% for category in page.taxonomies.categories %}
+        <a href="{{ get_taxonomy_url(kind='categories', name=category) | safe }}" class="category-tag">{{ category }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if page.extra.excerpt %}
+    <p class="post-excerpt">{{ page.extra.excerpt }}</p>
+    {% endif %}
+
+    <!-- Monumental Blood Red Rule -->
+    <hr class="monumental-rule" />
+  </header>
+
+  {% if page.extra.image %}
+  <figure class="post-hero">
+    <img src="{{ get_url(path=page.extra.image) | safe }}" alt="{{ page.title }}" />
+  </figure>
+  {% endif %}
+
+  {% if page.toc %}
+  <nav class="table-of-contents">
+    <h2 class="toc-title">Table of Contents</h2>
+    <ol class="toc-list">
+      {% for h1 in page.toc %}
+        {% if h1.level == 1 %}
+          {% for h in h1.children %}
+          <li class="toc-item toc-level-{{ h.level }}"><a href="{{ h.permalink | safe }}" class="toc-link">{{ h.title }}</a></li>
+            {% for c in h.children %}
+          <li class="toc-item toc-level-{{ c.level }}"><a href="{{ c.permalink | safe }}" class="toc-link">{{ c.title }}</a></li>
+            {% endfor %}
+          {% endfor %}
+        {% else %}
+          <li class="toc-item toc-level-{{ h1.level }}"><a href="{{ h1.permalink | safe }}" class="toc-link">{{ h1.title }}</a></li>
+          {% for c in h1.children %}
+          <li class="toc-item toc-level-{{ c.level }}"><a href="{{ c.permalink | safe }}" class="toc-link">{{ c.title }}</a></li>
+          {% endfor %}
+        {% endif %}
+      {% endfor %}
+    </ol>
+  </nav>
+  {% endif %}
+
+  <div class="post-content">
+    {{ page.content | safe }}
+  </div>
+
+  <footer class="post-footer">
+    {% if page.taxonomies.tags %}
+    <div class="post-tags">
+      <span class="tags-label">Tags:</span>
+      <div class="tag-list">
+        {% for tag in page.taxonomies.tags %}
+        <span class="tag">{{ tag }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="post-navigation">
+      <a href="{{ get_url(path='/blog/') | safe }}" class="back-to-blog">← Back to Blog</a>
+    </div>
+  </footer>
+</article>
+{% endblock content %}
