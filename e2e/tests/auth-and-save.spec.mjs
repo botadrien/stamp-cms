@@ -60,7 +60,7 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
 
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 10_000 });
 
-  // Vérification indépendante : la publication a vraiment atterri sur Forgejo, via son API.
+  // Vérification indépendante : le Markdown source a vraiment atterri sur main, via l'API.
   const res = await page.request.get(
     `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${seed.repoName}/contents/${testPath}`,
     { headers: { Authorization: `token ${seed.token}` } }
@@ -69,4 +69,18 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   const file = await res.json();
   const decoded = Buffer.from(file.content, "base64").toString("utf-8");
   expect(decoded).toContain(text);
+
+  // Vérification que "Publier" a vraiment régénéré le site avec Zola (pas juste écrit le
+  // Markdown) : la page HTML publiée sur la branche pages contient le texte, avec la
+  // mise en page/nav réelles générées par Zola — pas un fichier isolé.
+  const pageRes = await page.request.get(
+    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${seed.repoName}/contents/e2e-test/index.html?ref=pages`,
+    { headers: { Authorization: `token ${seed.token}` } }
+  );
+  expect(pageRes.ok()).toBeTruthy();
+  const pageFile = await pageRes.json();
+  const html = Buffer.from(pageFile.content, "base64").toString("utf-8");
+  expect(html).toContain(text);
+  expect(html).toContain("<nav>");
+  expect(html).toContain(">Accueil<");
 });

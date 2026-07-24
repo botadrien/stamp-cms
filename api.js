@@ -89,14 +89,17 @@ class ForgejoApi {
     });
   }
 
-  // Liste le contenu d'un dossier dans un dépôt (racine par défaut)
-  listContents(owner, repo, path = "") {
-    return this._request(`/repos/${owner}/${repo}/contents/${path}`);
+  // Liste le contenu d'un dossier dans un dépôt (racine par défaut). 404 si le dossier
+  // n'existe pas encore (site tout juste créé, pas encore de page à part l'accueil).
+  listContents(owner, repo, path = "", ref) {
+    const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
+    return this._request(`/repos/${owner}/${repo}/contents/${path}${query}`);
   }
 
   // Récupère un fichier (contenu encodé en base64 par l'API)
-  getFile(owner, repo, path) {
-    return this._request(`/repos/${owner}/${repo}/contents/${path}`);
+  getFile(owner, repo, path, ref) {
+    const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
+    return this._request(`/repos/${owner}/${repo}/contents/${path}${query}`);
   }
 
   // Crée ou met à jour un fichier. `sha` requis uniquement si le fichier existe déjà.

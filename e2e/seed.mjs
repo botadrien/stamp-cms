@@ -112,6 +112,18 @@ async function main() {
     throw new Error(`Échec création dépôt (${repoRes.status}) : ${await repoRes.text()}`);
   }
 
+  // Un vrai site créé via le POC (createSite() dans app.js) a toujours une branche
+  // "pages" — sans elle, "Publier" (qui republie sur cette branche) échoue.
+  console.log("Création de la branche pages...");
+  const branchRes = await fetch(`${INSTANCE_URL}/api/v1/repos/${USERNAME}/${REPO_NAME}/branches`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ new_branch_name: "pages", old_branch_name: "main" }),
+  });
+  if (!branchRes.ok) {
+    throw new Error(`Échec création branche pages (${branchRes.status}) : ${await branchRes.text()}`);
+  }
+
   const seed = {
     instanceUrl: INSTANCE_URL,
     redirectUri: REDIRECT_URI,

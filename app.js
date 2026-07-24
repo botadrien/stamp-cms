@@ -106,16 +106,19 @@ async function createSite() {
   statusEl.innerHTML = renderStatus("Création du site…", "info");
   try {
     const repo = await api.createRepo(name);
-    await api.createBranch(repo.owner.login, repo.name, "pages", repo.default_branch);
-    await api.createPagesWebhook(repo.owner.login, repo.name);
-    await api.saveFile(
-      repo.owner.login,
-      repo.name,
-      "index.html",
-      `<!DOCTYPE html>\n<html lang="fr">\n<head><meta charset="utf-8" /><title>${repo.name}</title></head>\n<body><h1>Site en construction</h1></body>\n</html>\n`,
-      { branch: "pages", message: "Publication initiale" }
-    );
-    currentRepo = { owner: repo.owner.login, name: repo.name };
+    const owner = repo.owner.login;
+    await api.createBranch(owner, repo.name, "pages", repo.default_branch);
+    await api.createPagesWebhook(owner, repo.name);
+
+    const scaffold = zolaScaffold(repo.name, api.pagesUrl(owner, repo.name));
+    for (const [path, content] of Object.entries(scaffold)) {
+      await api.saveFile(owner, repo.name, path, content, { message: "Site initial" });
+    }
+
+    statusEl.innerHTML = renderStatus("Génération du site…", "info");
+    await rebuildAndPublishSite(owner, repo.name);
+
+    currentRepo = { owner, name: repo.name };
     renderEditor();
   } catch (err) {
     const message = err.status === 409 ? "Ce nom est déjà pris, choisis-en un autre." : err.message;
@@ -128,7 +131,7 @@ async function openRepo(owner, name) {
   renderEditor();
 }
 
-function renderEditor(loadedPath = "content/hello.md", fileSha = null, fileContent = "") {
+function renderEditor(loadedPath = "content/_index.md", fileSha = null, fileContent = "") {
   appEl.innerHTML = `
     <div class="card">
       <button class="secondary" onclick="renderDashboard()">&larr; Retour aux sites</button>
@@ -163,8 +166,8 @@ async function loadFile() {
   statusEl.innerHTML = renderStatus("Chargement…", "info");
 
   try {
-    const file = await api.getFile(currentRepo.owner, currentRepo.name, path);
-    const decoded = decodeURIComponent(escape(atob(file.content)));
+    const file = await api.getFile(currentRepo.owner, currentRepo.name, path, "main");
+    const decoded = stripFrontMatter(decodeBase64Utf8(file.content));
     renderEditor(path, file.sha, decoded);
     document.getElementById("editorStatus").innerHTML = renderStatus(
       "Fichier chargé.",
@@ -182,22 +185,34 @@ async function loadFile() {
 
 async function saveFile() {
   const path = document.getElementById("path").value.trim();
-  const content = await RichEditor.getMarkdown();
+  const content = ensureFrontMatter(await RichEditor.getMarkdown(), path);
   const statusEl = document.getElementById("editorStatus");
   statusEl.innerHTML = renderStatus("Enregistrement…", "info");
 
+  let markdownSaved = false;
   try {
     const result = await api.saveFile(currentRepo.owner, currentRepo.name, path, content, {
       sha: renderEditor.currentSha,
     });
     renderEditor.currentSha = result.content.sha;
-    statusEl.innerHTML = renderStatus(
-      "Publié avec succès sur Codeberg ✓",
-      "success"
-    );
+    markdownSaved = true;
+
+    statusEl.innerHTML = renderStatus("Génération du site…", "info");
+    await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
+
+    statusEl.innerHTML = renderStatus("Publié avec succès sur Codeberg ✓", "success");
   } catch (err) {
     // Forgejo/Codeberg répondent 422 (pas 409) quand le sha envoyé ne correspond plus au
     // fichier côté serveur — ça n'arrive que si on avait un sha (mise à jour, pas création).
+    if (markdownSaved) {
+      // Le contenu est bien enregistré (source de vérité) ; seule la republication du
+      // site a échoué — ne pas laisser croire que la page elle-même n'est pas publiée.
+      statusEl.innerHTML = renderStatus(
+        `Ta page est enregistrée, mais la republication du site a échoué (${err.message}). Réessaie de publier.`,
+        "error"
+      );
+      return;
+    }
     const message =
       renderEditor.currentSha && err.status === 422
         ? "Cette page a été modifiée entre-temps ailleurs — recharge-la (« Charger ce fichier ») avant de publier, pour ne pas écraser ce changement."
