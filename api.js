@@ -38,7 +38,12 @@ class ForgejoApi {
     }
 
     if (!response.ok) {
-      console.error(`API error (${response.status}) sur ${path}:`, await response.text());
+      // silent404 : un 404 ici fait partie du fonctionnement normal de l'appelant (ex.
+      // vérifier si un fichier existe déjà avant de le créer) — pas la peine de polluer
+      // la console avec une "erreur" qui n'en est pas une.
+      if (!(response.status === 404 && options.silent404)) {
+        console.error(`API error (${response.status}) sur ${path}:`, await response.text());
+      }
       const err = new Error(friendlyApiError(response.status));
       err.status = response.status;
       throw err;
@@ -96,10 +101,11 @@ class ForgejoApi {
     return this._request(`/repos/${owner}/${repo}/contents/${path}${query}`);
   }
 
-  // Récupère un fichier (contenu encodé en base64 par l'API)
-  getFile(owner, repo, path, ref) {
+  // Récupère un fichier (contenu encodé en base64 par l'API). `silent404` : ne pas logger
+  // en erreur console un 404 ici (utilisé pour de simples vérifications d'existence).
+  getFile(owner, repo, path, ref, { silent404 = false } = {}) {
     const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
-    return this._request(`/repos/${owner}/${repo}/contents/${path}${query}`);
+    return this._request(`/repos/${owner}/${repo}/contents/${path}${query}`, { silent404 });
   }
 
   // Crée ou met à jour un fichier. `sha` requis uniquement si le fichier existe déjà.

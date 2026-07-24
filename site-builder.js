@@ -170,7 +170,7 @@ function nextAvailablePagePath(title, existingPaths) {
 async function publishFile(owner, repo, path, content) {
   let sha = null;
   try {
-    const existing = await api.getFile(owner, repo, path, "pages");
+    const existing = await api.getFile(owner, repo, path, "pages", { silent404: true });
     sha = existing.sha;
   } catch (err) {
     if (err.status !== 404) throw err;
