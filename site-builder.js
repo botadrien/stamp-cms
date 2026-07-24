@@ -99,7 +99,10 @@ async function fetchContentFiles(owner, repo) {
         await walk(entry.path);
       } else if (entry.path.endsWith(".md")) {
         const file = await api.getFile(owner, repo, entry.path, "main");
-        files[entry.path] = decodeBase64Utf8(file.content);
+        // Garantit un front matter même sur des pages créées avant que ça soit
+        // automatique (ou modifiées hors du POC) — Zola refuse de builder le site
+        // entier si UN SEUL fichier content/*.md en est dépourvu.
+        files[entry.path] = ensureFrontMatter(decodeBase64Utf8(file.content), entry.path);
       }
     }
   }
