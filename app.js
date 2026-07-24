@@ -82,21 +82,10 @@ async function renderDashboard() {
   `;
 }
 
-function slugifySiteName(raw) {
-  return raw
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // accents
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 async function createSite() {
   const rawName = document.getElementById("newSiteName").value;
   const statusEl = document.getElementById("createSiteStatus");
-  const name = slugifySiteName(rawName);
+  const name = slugify(rawName);
 
   if (!name) {
     statusEl.innerHTML = renderStatus("Choisis un nom pour ton site.", "error");
@@ -119,7 +108,7 @@ async function createSite() {
     await rebuildAndPublishSite(owner, repo.name);
 
     currentRepo = { owner, name: repo.name };
-    renderEditor();
+    renderSitePages(owner, repo.name);
   } catch (err) {
     const message = err.status === 409 ? "Ce nom est déjà pris, choisis-en un autre." : err.message;
     statusEl.innerHTML = renderStatus(message, "error");
@@ -128,26 +117,82 @@ async function createSite() {
 
 async function openRepo(owner, name) {
   currentRepo = { owner, name };
-  renderEditor();
+  renderSitePages(owner, name);
 }
 
-function renderEditor(loadedPath = "content/_index.md", fileSha = null, fileContent = "") {
+async function renderSitePages(owner, name) {
+  RichEditor.unmount();
   appEl.innerHTML = `
     <div class="card">
       <button class="secondary" onclick="renderDashboard()">&larr; Retour aux sites</button>
-      <h2 style="margin-top:16px;">${currentRepo.owner}/${currentRepo.name}</h2>
+      <h2 style="margin-top:16px;">${owner}/${name}</h2>
       <p style="margin-top:-8px;">
-        <a href="${api.pagesUrl(currentRepo.owner, currentRepo.name)}" target="_blank" rel="noopener">
+        <a href="${api.pagesUrl(owner, name)}" target="_blank" rel="noopener">
           Voir le site publié &#8599;
         </a>
       </p>
+      <div id="pagesListStatus">${renderStatus("Chargement des pages…", "info")}</div>
+      <div id="pagesList"></div>
+    </div>
+    <div class="card">
+      <h2>Ajouter une page</h2>
+      <label for="newPageTitle">Titre de la page</label>
+      <input id="newPageTitle" placeholder="À propos" />
+      <button onclick="addPage()">Créer</button>
+      <div id="addPageStatus"></div>
+    </div>
+  `;
 
-      <label for="path">Chemin du fichier (Markdown)</label>
-      <input id="path" value="${loadedPath}" />
+  try {
+    const pages = await listContentPages(owner, name);
+    renderSitePages.pages = pages;
+    document.getElementById("pagesListStatus").innerHTML = "";
+    document.getElementById("pagesList").innerHTML = pages
+      .map(
+        (p) => `
+      <div class="repo-item">
+        <div>${p.title}</div>
+        <button class="secondary" onclick='editPage(${JSON.stringify(p.path)})'>Modifier</button>
+      </div>`
+      )
+      .join("");
+  } catch (err) {
+    renderSitePages.pages = [];
+    document.getElementById("pagesListStatus").innerHTML = renderStatus(err.message, "error");
+  }
+}
 
-      <div style="display:flex; gap:8px; margin-bottom:16px;">
-        <button class="secondary" onclick="loadFile()">Charger ce fichier</button>
-      </div>
+function addPage() {
+  const title = document.getElementById("newPageTitle").value.trim();
+  const statusEl = document.getElementById("addPageStatus");
+  if (!title) {
+    statusEl.innerHTML = renderStatus("Choisis un titre pour la page.", "error");
+    return;
+  }
+  const existingPaths = (renderSitePages.pages || []).map((p) => p.path);
+  const path = nextAvailablePagePath(title, existingPaths);
+  renderEditor(path, null, "");
+}
+
+async function editPage(path) {
+  RichEditor.unmount();
+  const owner = currentRepo.owner;
+  const name = currentRepo.name;
+  appEl.innerHTML = renderStatus("Chargement…", "info");
+  try {
+    const file = await api.getFile(owner, name, path, "main");
+    const decoded = stripFrontMatter(decodeBase64Utf8(file.content));
+    renderEditor(path, file.sha, decoded);
+  } catch (err) {
+    renderSitePages(owner, name);
+  }
+}
+
+function renderEditor(path, fileSha, fileContent) {
+  appEl.innerHTML = `
+    <div class="card">
+      <button class="secondary" onclick="renderSitePages(currentRepo.owner, currentRepo.name)">&larr; Retour aux pages</button>
+      <h2 style="margin-top:16px;">${currentRepo.owner}/${currentRepo.name}</h2>
 
       <label>Contenu</label>
       <div id="editorMount" style="border:1px solid var(--border); border-radius:8px; margin-bottom:16px; min-height:220px; color:#111;"></div>
@@ -157,34 +202,12 @@ function renderEditor(loadedPath = "content/_index.md", fileSha = null, fileCont
     </div>
   `;
   renderEditor.currentSha = fileSha;
+  renderEditor.currentPath = path;
   RichEditor.mount("editorMount", fileContent);
 }
 
-async function loadFile() {
-  const path = document.getElementById("path").value.trim();
-  const statusEl = document.getElementById("editorStatus");
-  statusEl.innerHTML = renderStatus("Chargement…", "info");
-
-  try {
-    const file = await api.getFile(currentRepo.owner, currentRepo.name, path, "main");
-    const decoded = stripFrontMatter(decodeBase64Utf8(file.content));
-    renderEditor(path, file.sha, decoded);
-    document.getElementById("editorStatus").innerHTML = renderStatus(
-      "Fichier chargé.",
-      "success"
-    );
-  } catch (err) {
-    // Fichier probablement inexistant -> on part sur une création
-    renderEditor(path, null, "");
-    document.getElementById("editorStatus").innerHTML = renderStatus(
-      "Fichier introuvable, il sera créé lors de l'enregistrement.",
-      "info"
-    );
-  }
-}
-
 async function saveFile() {
-  const path = document.getElementById("path").value.trim();
+  const path = renderEditor.currentPath;
   const content = ensureFrontMatter(await RichEditor.getMarkdown(), path);
   const statusEl = document.getElementById("editorStatus");
   statusEl.innerHTML = renderStatus("Enregistrement…", "info");
@@ -215,7 +238,7 @@ async function saveFile() {
     }
     const message =
       renderEditor.currentSha && err.status === 422
-        ? "Cette page a été modifiée entre-temps ailleurs — recharge-la (« Charger ce fichier ») avant de publier, pour ne pas écraser ce changement."
+        ? "Cette page a été modifiée entre-temps ailleurs — retourne à la liste des pages et rouvre-la avant de publier, pour ne pas écraser ce changement."
         : err.message;
     statusEl.innerHTML = renderStatus(message, "error");
   }

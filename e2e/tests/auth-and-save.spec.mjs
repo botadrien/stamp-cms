@@ -43,14 +43,8 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   await repoItem.getByRole("button", { name: "Ouvrir" }).click();
 
   const testPath = "content/e2e-test.md";
-  await page.locator("#path").fill(testPath);
-  await page.getByRole("button", { name: "Charger ce fichier" }).click();
-
-  // loadFile() ré-écrit tout #app (donc remonte l'éditeur riche) une fois la requête
-  // résolue — il faut attendre ce re-render avant d'écrire dedans.
-  await expect(page.locator("#editorStatus")).toContainText(/introuvable|chargé/, {
-    timeout: 10_000,
-  });
+  await page.locator("#newPageTitle").fill("e2e-test");
+  await page.getByRole("button", { name: "Créer" }).click();
 
   const text = `Écrit automatiquement le ${new Date().toISOString()} — accents: éàçù.`;
   const editor = page.locator("#editorMount [contenteditable=true]");

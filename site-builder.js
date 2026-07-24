@@ -82,10 +82,9 @@ function encodeUtf8Base64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
-// Parcourt récursivement content/ sur main et retourne { "content/x.md": "...", ... }.
-async function fetchContentFiles(owner, repo) {
-  const files = {};
-
+// Parcourt récursivement content/ sur main et appelle visit(path) pour chaque fichier
+// .md trouvé — partagé entre fetchContentFiles() et listContentPages().
+async function walkContentFiles(owner, repo, visit) {
   async function walk(dirPath) {
     let entries;
     try {
@@ -98,17 +97,72 @@ async function fetchContentFiles(owner, repo) {
       if (entry.type === "dir") {
         await walk(entry.path);
       } else if (entry.path.endsWith(".md")) {
-        const file = await api.getFile(owner, repo, entry.path, "main");
-        // Garantit un front matter même sur des pages créées avant que ça soit
-        // automatique (ou modifiées hors du POC) — Zola refuse de builder le site
-        // entier si UN SEUL fichier content/*.md en est dépourvu.
-        files[entry.path] = ensureFrontMatter(decodeBase64Utf8(file.content), entry.path);
+        await visit(entry.path);
       }
     }
   }
-
   await walk("content");
+}
+
+// Parcourt récursivement content/ sur main et retourne { "content/x.md": "...", ... }.
+async function fetchContentFiles(owner, repo) {
+  const files = {};
+  await walkContentFiles(owner, repo, async (path) => {
+    const file = await api.getFile(owner, repo, path, "main");
+    // Garantit un front matter même sur des pages créées avant que ça soit
+    // automatique (ou modifiées hors du POC) — Zola refuse de builder le site
+    // entier si UN SEUL fichier content/*.md en est dépourvu.
+    files[path] = ensureFrontMatter(decodeBase64Utf8(file.content), path);
+  });
   return files;
+}
+
+// Titre lisible d'une page : celui du front matter TOML si présent, sinon déduit du nom
+// de fichier (voir titleFromPath).
+function extractTitle(markdown, path) {
+  const match = markdown.match(/^title\s*=\s*"(.*)"\s*$/m);
+  return match ? match[1].replace(/\\"/g, '"') : titleFromPath(path);
+}
+
+// Liste les pages existantes (chemin + titre) pour l'écran "pages du site" — l'accueil
+// (content/_index.md) toujours en premier, le reste trié par titre.
+async function listContentPages(owner, repo) {
+  const pages = [];
+  await walkContentFiles(owner, repo, async (path) => {
+    const file = await api.getFile(owner, repo, path, "main");
+    pages.push({ path, title: extractTitle(decodeBase64Utf8(file.content), path) });
+  });
+  pages.sort((a, b) =>
+    a.path === "content/_index.md" ? -1 : b.path === "content/_index.md" ? 1 : a.title.localeCompare(b.title)
+  );
+  return pages;
+}
+
+// Transforme un texte libre en identifiant de fichier/dépôt (minuscules, sans accents,
+// tirets). Utilisé à la fois pour le nom de dépôt à la création d'un site et pour le
+// chemin de fichier d'une nouvelle page.
+function slugify(raw) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // accents
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+// Choisit un chemin content/<slug>.md libre pour une nouvelle page, en suffixant
+// -2, -3... si le titre saisi donne un slug déjà utilisé par une autre page.
+function nextAvailablePagePath(title, existingPaths) {
+  const base = slugify(title) || "page";
+  let path = `content/${base}.md`;
+  let n = 2;
+  while (existingPaths.includes(path)) {
+    path = `content/${base}-${n}.md`;
+    n += 1;
+  }
+  return path;
 }
 
 // Écrit un fichier sur la branche pages, en récupérant son sha existant si besoin
