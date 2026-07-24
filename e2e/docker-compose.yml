@@ -1,0 +1,36 @@
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:10
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - FORGEJO__security__INSTALL_LOCK=true
+      - FORGEJO__database__DB_TYPE=sqlite3
+      - FORGEJO__server__ROOT_URL=http://localhost:3000/
+      - FORGEJO__server__HTTP_PORT=3000
+      - FORGEJO__server__DISABLE_SSH=true
+      # Censé activer le CORS natif de Forgejo (ce qui suffirait en théorie sur
+      # /login/oauth/access_token, cf. optionsCorsHandler() dans routers/web/web.go),
+      # mais reste sans effet observé sur cette version — d'où le proxy Caddy ci-dessous.
+      - FORGEJO__cors__ENABLE=true
+      - FORGEJO__cors__ALLOW_DOMAIN=*
+    volumes:
+      - forgejo-data:/data
+    # Pas de port publié ici : voir le service "proxy" ci-dessous.
+
+  # Codeberg (le vrai déploiement cible) renvoie `access-control-allow-origin: *` sur
+  # /login/oauth/access_token — sans quoi le POC casse en "Failed to fetch" côté
+  # navigateur (requête cross-origin bloquée par le fetch du token). Le [cors] natif de
+  # Forgejo ne suffit pas ici (voir ci-dessus), donc ce proxy rejoue cet en-tête pour que
+  # l'environnement local se comporte comme la prod.
+  proxy:
+    image: caddy:2-alpine
+    depends_on:
+      - forgejo
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+volumes:
+  forgejo-data:

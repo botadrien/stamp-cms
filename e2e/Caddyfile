@@ -1,0 +1,22 @@
+:3000 {
+	# Codeberg (le vrai déploiement cible) répond correctement aux preflights CORS
+	# (OPTIONS) sur /api/v1/* et /login/oauth/access_token — indispensable dès qu'on
+	# envoie un header Authorization (donc pour tout appel API authentifié). Forgejo
+	# vanilla renvoie un 405 sans les en-têtes attendus sur ces mêmes routes : on
+	# répond nous-mêmes au preflight pour que l'environnement local colle à la prod.
+	@options {
+		method OPTIONS
+	}
+	handle @options {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+		header Access-Control-Allow-Headers "Authorization, Content-Type"
+		header Access-Control-Max-Age "600"
+		respond 204
+	}
+
+	reverse_proxy forgejo:3000
+
+	header Access-Control-Allow-Origin "*"
+	header Vary "Origin"
+}

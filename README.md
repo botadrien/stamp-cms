@@ -35,15 +35,61 @@ L'objectif : un outil gratuit (hébergement 100% statique) et plus sûr que Word
 
 Valider brique par brique, en commençant par la plus risquée :
 
-1. **Auth OAuth2+PKCE vers Codeberg** — en cours, voir
-   [`pocs/2026-07-poc-pkce/`](pocs/2026-07-poc-pkce/) : login sans serveur, liste des
-   dépôts, lecture/écriture d'un fichier Markdown via commit direct.
+1. **Auth OAuth2+PKCE vers Codeberg** — en cours, voir ci-dessous : login sans serveur,
+   liste des dépôts, lecture/écriture d'un fichier Markdown via commit direct.
 2. Éditeur riche (BlockNote.js) → conversion en Markdown → écriture dans le dépôt via
    l'API.
 3. Pipeline de build automatique (Eleventy + Action) qui build et déploie à chaque
    modification.
 4. Ensuite seulement : gestion des médias, support multi-fournisseur Git (GitLab,
    GitHub...) via une couche d'abstraction commune, système de plugins/thèmes.
+
+## Tester en local
+
+Le POC (`index.html`, `config.js`, `pkce.js`, `auth.js`, `api.js`, `app.js`) couvre le
+login OAuth+PKCE, la liste des dépôts, et la lecture/écriture d'un fichier Markdown via
+commit direct.
+
+1. Crée une OAuth App sur Codeberg (**Settings → Applications**), en **décochant
+   "Confidential Client"** (client public, sans secret, requis pour PKCE), avec un
+   Redirect URI qui correspond exactement à l'URL de déploiement (ex.
+   `http://localhost:8080/` en local).
+2. Colle le `clientId` généré dans `config.js`.
+3. Sers le dossier avec un serveur statique (obligatoire — `file://` casse `fetch` et
+   `crypto.subtle`, et OAuth n'accepte pas les chemins locaux comme Redirect URI) :
+   ```bash
+   python3 -m http.server 8080
+   ```
+4. Va sur `http://localhost:8080/`, connecte-toi, ouvre un dépôt, édite/crée un
+   fichier `.md` et enregistre — ça doit produire un vrai commit sur Codeberg.
+
+## Tests e2e (Forgejo local)
+
+Plutôt que de mocker les appels API, les tests e2e (`e2e/`) font tourner une vraie
+instance [Forgejo](https://forgejo.org/) en local via Docker et pilotent un vrai
+navigateur (Playwright) à travers le flow complet : login OAuth2+PKCE réel (formulaire
+de connexion, écran de consentement), édition et commit d'un fichier — vérifié ensuite
+via l'API Forgejo elle-même.
+
+```bash
+npm install
+npm run e2e        # up (Forgejo + seed) + tests + down, tout en un
+```
+
+Ou étape par étape (utile pour déboguer) :
+
+```bash
+npm run e2e:up     # démarre Forgejo, crée un user/app OAuth2/dépôt de test (e2e/seed.mjs)
+npm run e2e:test   # lance les tests Playwright (démarre aussi le serveur statique du POC)
+npm run e2e:down   # arrête et nettoie
+```
+
+Point notable découvert en construisant ces tests : Codeberg répond aux requêtes
+cross-origin (CORS) sur `/login/oauth/access_token` et sur `/api/v1/*` avec les en-têtes
+`Access-Control-Allow-Origin` — sans quoi le POC casserait en `Failed to fetch` — mais
+Forgejo vanilla ne le fait pas nativement sur ces routes. `e2e/Caddyfile` reproduit ce
+comportement via un reverse proxy devant Forgejo, pour que l'environnement de test colle
+au vrai comportement de production.
 
 ## Points à trancher / vigilance
 

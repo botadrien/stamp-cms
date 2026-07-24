@@ -1,0 +1,14 @@
+{
+  "name": "cms-statique",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e:up": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans; docker compose -f e2e/docker-compose.yml up -d && node e2e/seed.mjs",
+    "e2e:down": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans",
+    "e2e:test": "playwright test -c e2e/playwright.config.mjs",
+    "e2e": "npm run e2e:up && npm run e2e:test; status=$?; npm run e2e:down; exit $status"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

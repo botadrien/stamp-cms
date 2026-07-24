@@ -5,9 +5,15 @@
 set -euo pipefail
 
 sudo apt-get update -y
-sudo apt-get install -y build-essential curl git vim tmux dnsutils gh
+sudo apt-get install -y build-essential curl git vim tmux dnsutils gh docker.io docker-compose-v2
 
 sudo systemctl disable --now motd-news.timer # ubuntu ad banner
+
+# docker (used to run a local Forgejo instance for e2e tests)
+sudo usermod -aG docker "$(whoami)"
+sudo systemctl enable --now docker
+# group membership only applies to new sessions; this script itself keeps using sudo/sg
+# where needed, but a fresh `limactl shell` afterwards can run docker without either
 
 # gh config lives on the host disk so its own auth (separate from the host's account)
 # survives VM recreation instead of requiring `gh auth login` every time
@@ -21,6 +27,14 @@ export PATH="$HOME/.local/bin:$PATH"
 cd "$PROJECT_DIR" && mise trust 2>/dev/null || true
 echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> ~/.bashrc
 export PATH="$HOME/.local/share/mise/shims:$PATH"
+
+# node (needed for the e2e test suite: Playwright)
+mise use -g node@lts
+
+# Playwright + Chromium, for e2e browser tests against the POC + local Forgejo
+npm install -g playwright
+sudo env "PATH=$PATH" "$(which npx)" playwright install --with-deps chromium
+npx playwright install chromium # browser binary itself must also be installed as this user, not just root
 
 # tweaks
 echo "cd $PROJECT_DIR" >> ~/.bashrc # always open the terminal in the repo
