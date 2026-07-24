@@ -46,20 +46,21 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   await page.locator("#path").fill(testPath);
   await page.getByRole("button", { name: "Charger ce fichier" }).click();
 
-  // loadFile() ré-écrit tout #app (donc recrée #content) une fois la requête résolue —
-  // il faut attendre ce re-render avant de remplir le champ, sous peine d'éditer un
-  // <textarea> qui va être remplacé et perdre son contenu.
+  // loadFile() ré-écrit tout #app (donc remonte l'éditeur riche) une fois la requête
+  // résolue — il faut attendre ce re-render avant d'écrire dedans.
   await expect(page.locator("#editorStatus")).toContainText(/introuvable|chargé/, {
     timeout: 10_000,
   });
 
-  const content = `# Test e2e\n\nÉcrit automatiquement le ${new Date().toISOString()} — accents: éàçù.`;
-  await page.locator("#content").fill(content);
+  const text = `Écrit automatiquement le ${new Date().toISOString()} — accents: éàçù.`;
+  const editor = page.locator("#editorMount [contenteditable=true]");
+  await editor.click();
+  await page.keyboard.type(text);
   await page.getByRole("button", { name: "Publier" }).click();
 
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 10_000 });
 
-  // Vérification indépendante : le commit a vraiment atterri sur Forgejo, via son API.
+  // Vérification indépendante : la publication a vraiment atterri sur Forgejo, via son API.
   const res = await page.request.get(
     `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${seed.repoName}/contents/${testPath}`,
     { headers: { Authorization: `token ${seed.token}` } }
@@ -67,5 +68,5 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   expect(res.ok()).toBeTruthy();
   const file = await res.json();
   const decoded = Buffer.from(file.content, "base64").toString("utf-8");
-  expect(decoded).toBe(content);
+  expect(decoded).toContain(text);
 });

@@ -37,8 +37,8 @@ Valider brique par brique, en commençant par la plus risquée :
 
 1. **Auth OAuth2+PKCE vers Codeberg** — en cours, voir ci-dessous : login sans serveur,
    liste des dépôts, lecture/écriture d'un fichier Markdown via commit direct.
-2. Éditeur riche (BlockNote.js) → conversion en Markdown → écriture dans le dépôt via
-   l'API.
+2. **Éditeur riche (BlockNote.js)** — en cours, voir ci-dessous : conversion en
+   Markdown → écriture dans le dépôt via l'API.
 3. Pipeline de build automatique (Eleventy + Action) qui build et déploie à chaque
    modification.
 4. Ensuite seulement : gestion des médias, support multi-fournisseur Git (GitLab,
@@ -48,16 +48,24 @@ Valider brique par brique, en commençant par la plus risquée :
 
 Le POC (`index.html`, `config.js`, `pkce.js`, `auth.js`, `api.js`, `app.js`) couvre le
 login OAuth+PKCE, la liste des dépôts, et la lecture/écriture d'un fichier Markdown via
-commit direct.
+commit direct, avec un éditeur riche (BlockNote.js, voir `editor-src/editor.jsx`) plutôt
+que du Markdown brut.
+
+BlockNote (React + ProseMirror + Mantine) est trop imbriqué pour être chargé fiablement
+via des `<script>`/CDN sans bundler (duplication de singletons ProseMirror entre le point
+d'entrée principal et ses sous-modules) — un petit build esbuild (`npm run build`)
+produit `editor.bundle.js`/`.css`, chargés par `index.html` comme n'importe quel autre
+script. Le reste de l'app reste des scripts classiques sans build.
 
 1. Crée une OAuth App sur Codeberg (**Settings → Applications**), en **décochant
    "Confidential Client"** (client public, sans secret, requis pour PKCE), avec un
    Redirect URI qui correspond exactement à l'URL de déploiement (ex.
    `http://localhost:8080/` en local).
 2. Colle le `clientId` généré dans `config.js`.
-3. Sers le dossier avec un serveur statique (obligatoire — `file://` casse `fetch` et
+3. Installe les dépendances et sers le dossier (obligatoire — `file://` casse `fetch` et
    `crypto.subtle`, et OAuth n'accepte pas les chemins locaux comme Redirect URI) :
    ```bash
+   npm install
    make run
    ```
 4. Va sur `http://localhost:8080/`, connecte-toi, ouvre un dépôt, édite/crée un

@@ -10,6 +10,7 @@ function renderStatus(message, type = "info") {
 }
 
 function renderLogin(extraMessage = "") {
+  RichEditor.unmount();
   userbarEl.innerHTML = "";
   appEl.innerHTML = `
     <div class="card">
@@ -30,6 +31,7 @@ function renderLoading(message) {
 }
 
 async function renderDashboard() {
+  RichEditor.unmount();
   userbarEl.innerHTML = `
     <span>${currentUser.login}</span>
     <button class="secondary" onclick="logout()">Déconnexion</button>
@@ -137,14 +139,15 @@ function renderEditor(loadedPath = "content/hello.md", fileSha = null, fileConte
         <button class="secondary" onclick="loadFile()">Charger ce fichier</button>
       </div>
 
-      <label for="content">Contenu</label>
-      <textarea id="content" placeholder="# Titre de la page&#10;&#10;Écris ton contenu en markdown ici...">${fileContent}</textarea>
+      <label>Contenu</label>
+      <div id="editorMount" style="border:1px solid var(--border); border-radius:8px; margin-bottom:16px; min-height:220px; color:#111;"></div>
 
       <button onclick="saveFile()">Publier</button>
       <div id="editorStatus"></div>
     </div>
   `;
   renderEditor.currentSha = fileSha;
+  RichEditor.mount("editorMount", fileContent);
 }
 
 async function loadFile() {
@@ -172,7 +175,7 @@ async function loadFile() {
 
 async function saveFile() {
   const path = document.getElementById("path").value.trim();
-  const content = document.getElementById("content").value;
+  const content = await RichEditor.getMarkdown();
   const statusEl = document.getElementById("editorStatus");
   statusEl.innerHTML = renderStatus("Enregistrement…", "info");
 

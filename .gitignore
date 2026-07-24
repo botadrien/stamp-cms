@@ -4,3 +4,5 @@ node_modules
 e2e/.seed.json
 test-results
 playwright-report
+editor.bundle.js
+editor.bundle.css

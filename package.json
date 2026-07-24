@@ -3,12 +3,21 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "esbuild editor-src/editor.jsx --bundle --minify --format=iife --global-name=RichEditor --jsx=automatic --conditions=style --outfile=editor.bundle.js",
     "e2e:up": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans; docker compose -f e2e/docker-compose.yml up -d && node e2e/seed.mjs",
     "e2e:down": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans",
-    "e2e:test": "playwright test -c e2e/playwright.config.mjs",
+    "e2e:test": "npm run build && playwright test -c e2e/playwright.config.mjs",
     "e2e": "npm run e2e:up && npm run e2e:test; status=$?; npm run e2e:down; exit $status"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0"
+    "@playwright/test": "^1.48.0",
+    "esbuild": "^0.28.1"
+  },
+  "dependencies": {
+    "@blocknote/core": "^0.52.1",
+    "@blocknote/mantine": "^0.52.1",
+    "@blocknote/react": "^0.52.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   }
 }
