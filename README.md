@@ -157,6 +157,24 @@ au vrai comportement de production.
   fichiers individuels plafonnés) — à surveiller si beaucoup de photos/vidéos
 - Rester multi-fournisseur à terme sans complexifier le MVP
 
+## Piste explorée puis abandonnée : isomorphic-git
+
+Une tentative de remplacer l'API REST "contents" de Forgejo par du vrai git
+(clone/fetch/push en mémoire dans le navigateur, via isomorphic-git +
+lightning-fs) a été menée pour de bon — un seul push au lieu de N requêtes
+GET/PUT par fichier, et une vraie détection de conflit par fast-forward côté
+serveur plutôt que le verrou par sha de Forgejo. Le code fonctionne et est
+vérifié par la suite e2e complète (voir la branche
+[`explore/isomorphic-git`](https://github.com/botadrien/cmstatic/tree/explore/isomorphic-git)),
+mais n'a pas été mergé sur `main` : Codeberg ne renvoie pas d'en-tête CORS sur
+ses endpoints git smart-HTTP (contrairement à `/api/v1/*`), ce qui oblige à
+passer par un proxy CORS pour cloner/pousser depuis le navigateur. Le seul
+proxy public gratuit (`cors.isomorphic-git.org`) s'est montré trop instable en
+pratique (erreurs Cloudflare 403/502 constatées aussi bien depuis un
+environnement de test que depuis une IP résidentielle normale) pour être
+utilisable en prod telle quelle. À revisiter si un proxy auto-hébergé devient
+acceptable, ou si Codeberg ajoute un jour le support CORS sur ces routes.
+
 ## État de l'art
 
 - **Decap CMS / Tina CMS** — CMS Git, mais orientés développeurs
