@@ -20,20 +20,25 @@ sudo systemctl enable --now docker
 mkdir -p ~/.config "$PROJECT_DIR/tmp/lima-vm-cache/gh-config"
 rm -rf ~/.config/gh && ln -s "$PROJECT_DIR/tmp/lima-vm-cache/gh-config" ~/.config/gh
 
-# mise (language version manager, for whatever runtime this project ends up using)
+# mise (language version manager) + node, pinned in mise.toml
 rm -rf ~/.local && ln -s "$PROJECT_DIR/tmp/lima-vm-cache/local" ~/.local
 curl https://mise.run | sh
 export PATH="$HOME/.local/bin:$PATH"
-cd "$PROJECT_DIR" && mise trust 2>/dev/null || true
+cd "$PROJECT_DIR" && mise trust && mise install && mise reshim
 echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> ~/.bashrc
 export PATH="$HOME/.local/share/mise/shims:$PATH"
 
-# node (needed for the e2e test suite: Playwright)
-mise use -g node@lts
-
-# Playwright + Chromium, for e2e browser tests against the POC + local Forgejo
-npm install -g playwright
-sudo env "PATH=$PATH" "$(which npx)" playwright install --with-deps chromium
+# Playwright + Chromium, for e2e browser tests against the POC + local Forgejo.
+# node_modules is already populated (host-mounted), so this uses the project's
+# own pinned @playwright/test instead of a separately-versioned global install.
+#
+# Resolved to the real npx binary/dir (not the mise shim) because under sudo,
+# mise's shim can't read ~/.config/mise/config.toml (HOME points at root's) and
+# errors with "npx is not a valid shim"; the real dir must lead PATH too since
+# npx's shebang re-execs `node`, which would otherwise hit the same broken shim.
+NPX_BIN="$(mise which npx)"
+NPX_DIR="$(dirname "$NPX_BIN")"
+sudo env "PATH=$NPX_DIR:$PATH" "$NPX_BIN" playwright install --with-deps chromium
 npx playwright install chromium # browser binary itself must also be installed as this user, not just root
 
 # tweaks
