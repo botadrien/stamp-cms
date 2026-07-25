@@ -1,5 +1,6 @@
 const appEl = document.getElementById("app");
 const userbarEl = document.getElementById("userbar");
+const sidebarEl = document.getElementById("sidebar");
 
 let api = null;
 let currentUser = null;
@@ -12,6 +13,8 @@ function renderStatus(message, type = "info") {
 function renderLogin(extraMessage = "") {
   RichEditor.unmount();
   userbarEl.innerHTML = "";
+  sidebarEl.hidden = true;
+  sidebarEl.innerHTML = "";
   appEl.innerHTML = `
     <div class="card">
       <h2>Connecte ton compte Codeberg</h2>
@@ -40,6 +43,10 @@ function siteHash(owner, name) {
   return `#/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
 }
 
+function postsHash(owner, name) {
+  return `${siteHash(owner, name)}/posts`;
+}
+
 function editorHash(owner, name, path) {
   return `${siteHash(owner, name)}/edit/${encodeURIComponent(path)}`;
 }
@@ -61,7 +68,56 @@ function parseHash(hash) {
   if (segments[2] === "settings") {
     return { view: "settings", owner, repo };
   }
-  return { view: "sitePages", owner, repo };
+  if (segments[2] === "posts") {
+    return { view: "posts", owner, repo };
+  }
+  // Rien après owner/repo : "Pages" est l'écran d'accueil d'un site (pas de segment
+  // d'URL dédié), pour que les liens/retours existants vers #/owner/repo continuent de
+  // fonctionner tels quels.
+  return { view: "pages", owner, repo };
+}
+
+// Barre latérale façon WordPress (Pages / Articles / Réglages), affichée dès qu'on est
+// "dans" un site — masquée sur le tableau de bord et l'écran de connexion. Re-rendue en
+// entier à chaque navigation plutôt que montée une fois et mise à jour : cohérent avec le
+// reste du fichier (chaque écran fait un innerHTML complet), et évite tout risque de
+// surbrillance d'item périmée pour un coût négligeable (quelques <a>).
+function renderSidebar(route) {
+  if (!route) {
+    sidebarEl.hidden = true;
+    sidebarEl.innerHTML = "";
+    return;
+  }
+  const { owner, repo, view } = route;
+  const items = [
+    { key: "pages", label: "Pages", icon: ICONS.pages, href: siteHash(owner, repo) },
+    { key: "posts", label: "Articles", icon: ICONS.posts, href: postsHash(owner, repo) },
+    { key: "settings", label: "Réglages", icon: ICONS.settings, href: settingsHash(owner, repo) },
+  ];
+  sidebarEl.hidden = false;
+  sidebarEl.innerHTML = `
+    <div class="sidebar-header">
+      <a class="sidebar-back" href="#/">${ICONS.back} Tes sites</a>
+      <div class="sidebar-site-name">${owner}/${repo}</div>
+    </div>
+    <ul class="sidebar-nav">
+      ${items
+        .map(
+          (item) => `
+        <li>
+          <a class="sidebar-nav-item ${view === item.key ? "active" : ""}" href="${item.href}">
+            ${item.icon}<span>${item.label}</span>
+          </a>
+        </li>`
+        )
+        .join("")}
+    </ul>
+    <div class="sidebar-footer">
+      <a href="${api.pagesUrl(owner, repo)}" target="_blank" rel="noopener">
+        ${ICONS.external} Voir le site publié
+      </a>
+    </div>
+  `;
 }
 
 // Traduit l'URL courante en écran affiché — appelé au chargement (pour permettre de
@@ -72,15 +128,19 @@ async function renderRoute() {
   const route = parseHash(window.location.hash);
   if (route.view === "dashboard") {
     currentRepo = null;
+    renderSidebar(null);
     await renderDashboard();
-  } else if (route.view === "sitePages") {
-    currentRepo = { owner: route.owner, name: route.repo };
-    await renderSitePages(route.owner, route.repo);
+    return;
+  }
+  currentRepo = { owner: route.owner, name: route.repo };
+  renderSidebar(route);
+  if (route.view === "pages") {
+    await renderPages(route.owner, route.repo);
+  } else if (route.view === "posts") {
+    await renderPosts(route.owner, route.repo);
   } else if (route.view === "settings") {
-    currentRepo = { owner: route.owner, name: route.repo };
     await renderSiteSettings(route.owner, route.repo);
   } else {
-    currentRepo = { owner: route.owner, name: route.repo };
     await openEditor(route.owner, route.repo, route.path);
   }
 }
@@ -177,35 +237,42 @@ function openRepo(owner, name) {
   window.location.hash = siteHash(owner, name);
 }
 
-function renderPageGroup(title, entries) {
-  if (!entries.length) return "";
-  return `
-    <h3 style="margin-top:24px;">${title}</h3>
-    ${entries
-      .map(
-        (p) => `
-      <div class="repo-item">
-        <div>${p.title}</div>
-        <button class="secondary" onclick='editPage(${JSON.stringify(p.path)})'>Modifier</button>
-      </div>`
-      )
-      .join("")}
-  `;
+function renderPageList(entries, emptyMessage) {
+  if (!entries.length) return renderStatus(emptyMessage, "info");
+  return entries
+    .map(
+      (p) => `
+    <div class="repo-item">
+      <a href="#" onclick='editPage(${JSON.stringify(p.path)}); return false;'>${p.title}</a>
+    </div>`
+    )
+    .join("");
 }
 
-async function renderSitePages(owner, name) {
+// Commun à renderPages()/renderPosts() : une seule lecture de listContentPages() (qui
+// renvoie déjà pages ET articles), filtrée selon l'écran. Le cache complet (pas filtré)
+// est réutilisé par addPage() pour éviter qu'une page standalone et un article de blog
+// se retrouvent sur le même slug.
+async function loadAndRenderList(owner, name, type, listElId, statusElId, emptyMessage) {
+  try {
+    const pages = await listContentPages(owner, name);
+    loadAndRenderList.pages = pages;
+    document.getElementById(statusElId).innerHTML = "";
+    document.getElementById(listElId).innerHTML = renderPageList(
+      pages.filter((p) => p.type === type),
+      emptyMessage
+    );
+  } catch (err) {
+    loadAndRenderList.pages = [];
+    document.getElementById(statusElId).innerHTML = renderStatus(err.message, "error");
+  }
+}
+
+async function renderPages(owner, name) {
   RichEditor.unmount();
   appEl.innerHTML = `
     <div class="card">
-      <button class="secondary" onclick="window.location.hash = '#/'">&larr; Retour aux sites</button>
-      <h2 style="margin-top:16px;">${owner}/${name}</h2>
-      <p style="margin-top:-8px;">
-        <a href="${api.pagesUrl(owner, name)}" target="_blank" rel="noopener">
-          Voir le site publié &#8599;
-        </a>
-        &middot;
-        <a href="${settingsHash(owner, name)}">Réglages du site</a>
-      </p>
+      <h2>Pages</h2>
       <div id="pagesListStatus">${renderStatus("Chargement des pages…", "info")}</div>
       <div id="pagesList"></div>
     </div>
@@ -216,6 +283,18 @@ async function renderSitePages(owner, name) {
       <button onclick="addPage('page')">Créer</button>
       <div id="addPageStatus"></div>
     </div>
+  `;
+  await loadAndRenderList(owner, name, "page", "pagesList", "pagesListStatus", "Aucune page pour l'instant.");
+}
+
+async function renderPosts(owner, name) {
+  RichEditor.unmount();
+  appEl.innerHTML = `
+    <div class="card">
+      <h2>Articles</h2>
+      <div id="postsListStatus">${renderStatus("Chargement des articles…", "info")}</div>
+      <div id="postsList"></div>
+    </div>
     <div class="card">
       <h2>Ajouter un article</h2>
       <label for="newPostTitle">Titre de l'article</label>
@@ -224,20 +303,7 @@ async function renderSitePages(owner, name) {
       <div id="addPostStatus"></div>
     </div>
   `;
-
-  try {
-    const pages = await listContentPages(owner, name);
-    renderSitePages.pages = pages;
-    document.getElementById("pagesListStatus").innerHTML = "";
-    const standalonePages = pages.filter((p) => p.type === "page");
-    const posts = pages.filter((p) => p.type === "post");
-    document.getElementById("pagesList").innerHTML =
-      renderPageGroup("Pages", standalonePages) + renderPageGroup("Articles de blog", posts) ||
-      renderStatus("Aucune page pour l'instant.", "info");
-  } catch (err) {
-    renderSitePages.pages = [];
-    document.getElementById("pagesListStatus").innerHTML = renderStatus(err.message, "error");
-  }
+  await loadAndRenderList(owner, name, "post", "postsList", "postsListStatus", "Aucun article pour l'instant.");
 }
 
 // kind: "page" (standalone, content/) ou "post" (article de blog, content/blog/).
@@ -252,7 +318,7 @@ function addPage(kind) {
     statusEl.innerHTML = renderStatus("Choisis un titre.", "error");
     return;
   }
-  const existingPaths = (renderSitePages.pages || []).map((p) => p.path);
+  const existingPaths = (loadAndRenderList.pages || []).map((p) => p.path);
   const path = nextAvailablePagePath(title, existingPaths, dirPrefix);
   window.location.hash = editorHash(currentRepo.owner, currentRepo.name, path);
 }
@@ -265,8 +331,7 @@ async function renderSiteSettings(owner, name) {
   RichEditor.unmount();
   appEl.innerHTML = `
     <div class="card">
-      <button class="secondary" onclick='window.location.hash = ${JSON.stringify(siteHash(owner, name))}'>&larr; Retour aux pages</button>
-      <h2 style="margin-top:16px;">Réglages du site</h2>
+      <h2>Réglages du site</h2>
       <div id="settingsLoadStatus">${renderStatus("Chargement…", "info")}</div>
       <div id="settingsForm" style="display:none;">
         <label for="blogTitle">Titre du blog</label>

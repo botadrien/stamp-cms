@@ -11,6 +11,8 @@ la mécanique Git (branches, commits...).
 L'objectif : un outil gratuit (hébergement 100% statique) et plus sûr que WordPress
 (pas de serveur à patcher, pas de base de données à sécuriser).
 
+![Interface d'administration : barre latérale façon WordPress avec Pages / Articles / Réglages](docs/screenshots/admin-pages.png)
+
 ## Principes clés
 
 - **Zéro serveur** : le CMS lui-même est une application JS statique, déployable sur

@@ -56,7 +56,7 @@ test("modifier le titre du blog depuis Réglages du site republie le site", asyn
   await expect(repoItem).toBeVisible({ timeout: 10_000 });
   await repoItem.getByRole("button", { name: "Ouvrir" }).click();
 
-  await page.getByRole("link", { name: "Réglages du site" }).click();
+  await page.getByRole("link", { name: "Réglages" }).click();
 
   const newTitle = `Mon blog e2e ${Date.now()}`;
   const titleInput = page.locator("#blogTitle");
@@ -100,8 +100,8 @@ test("une page standalone et un article de blog atterrissent à des chemins cont
   await page.getByRole("button", { name: "Publier" }).click();
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 
-  // Retour à la liste des pages pour ajouter l'article de blog.
-  await page.getByRole("button", { name: "Retour aux pages" }).click();
+  // Écran "Articles" (barre latérale) pour ajouter l'article de blog.
+  await page.getByRole("link", { name: "Articles" }).click();
   const addPostCard = page.locator(".card", { has: page.locator("#newPostTitle") });
   await expect(addPostCard.locator("#newPostTitle")).toBeVisible({ timeout: 10_000 });
   await addPostCard.locator("#newPostTitle").fill("article de blog e2e");
@@ -125,22 +125,13 @@ test("une page standalone et un article de blog atterrissent à des chemins cont
   );
   expect(postRes.ok()).toBeTruthy();
 
-  // Et dans l'écran "pages du site", chacune apparaît sous son propre groupe — vérifié
-  // par l'ordre dans le DOM (renderPageGroup rend "Pages" puis "Articles de blog", sans
-  // conteneur par groupe, donc pas de sélecteur CSS propre pour "le contenu de ce groupe").
-  // Titre affiché déduit du nom de fichier par titleFromPath() (pas de "# titre" tapé
-  // dans l'éditeur) : premier mot capitalisé, le reste tel quel.
-  await page.getByRole("button", { name: "Retour aux pages" }).click();
-  const pagesList = page.locator("#pagesList");
-  await expect(pagesList).toContainText("Page standalone e2e", { timeout: 10_000 });
-  const html = await pagesList.innerHTML();
-  const pagesHeadingIdx = html.indexOf(">Pages<");
-  const postsHeadingIdx = html.indexOf(">Articles de blog<");
-  const pageItemIdx = html.indexOf("Page standalone e2e");
-  const postItemIdx = html.indexOf("Article de blog e2e");
-  expect(pagesHeadingIdx).toBeGreaterThanOrEqual(0);
-  expect(postsHeadingIdx).toBeGreaterThan(pagesHeadingIdx);
-  expect(pageItemIdx).toBeGreaterThan(pagesHeadingIdx);
-  expect(pageItemIdx).toBeLessThan(postsHeadingIdx);
-  expect(postItemIdx).toBeGreaterThan(postsHeadingIdx);
+  // Et chacune apparaît dans son propre écran (Pages / Articles, désormais séparés —
+  // voir renderPages()/renderPosts() dans app.js). Titre affiché déduit du nom de
+  // fichier par titleFromPath() (pas de "# titre" tapé dans l'éditeur) : premier mot
+  // capitalisé, le reste tel quel.
+  await page.getByRole("link", { name: "Pages" }).click();
+  await expect(page.locator("#pagesList")).toContainText("Page standalone e2e", { timeout: 10_000 });
+
+  await page.getByRole("link", { name: "Articles" }).click();
+  await expect(page.locator("#postsList")).toContainText("Article de blog e2e", { timeout: 10_000 });
 });
