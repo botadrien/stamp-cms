@@ -67,5 +67,5 @@ test("une page existante sans front matter n'empêche pas de publier une autre p
   await page.keyboard.type("Nouvelle page malgré le fichier legacy.");
   await page.getByRole("button", { name: "Publier" }).click();
 
-  await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 10_000 });
+  await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 });

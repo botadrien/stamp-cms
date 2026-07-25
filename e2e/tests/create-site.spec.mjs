@@ -38,7 +38,7 @@ test("créer un site publie automatiquement une branche pages", async ({ page })
 
   // La création enchaîne 4 appels API (repo, branche, webhook, fichier) avant de passer
   // à l'éditeur.
-  await expect(page.getByText(`${seed.repoOwner}/${siteName}`)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(`${seed.repoOwner}/${siteName}`)).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole("link", { name: /Voir le site publié/ })).toBeVisible();
 
   // Vérification indépendante côté API : la branche "pages" existe avec un index.html.

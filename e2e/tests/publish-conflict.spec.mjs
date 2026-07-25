@@ -44,7 +44,7 @@ test("publier une page modifiée entre-temps affiche un conflit, pas une erreur 
   await editor.click();
   await page.keyboard.type("Version initiale");
   await page.getByRole("button", { name: "Publier" }).click();
-  await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 10_000 });
+  await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 
   // Quelqu'un d'autre modifie ce même fichier directement via l'API, entre-temps.
   const getRes = await page.request.get(

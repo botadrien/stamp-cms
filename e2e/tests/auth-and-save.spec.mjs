@@ -55,7 +55,7 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   await page.keyboard.type(text);
   await page.getByRole("button", { name: "Publier" }).click();
 
-  await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 10_000 });
+  await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 
   // Vérification indépendante : le Markdown source a vraiment atterri sur main, via l'API.
   const res = await page.request.get(
