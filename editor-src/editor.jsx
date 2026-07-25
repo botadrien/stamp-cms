@@ -12,7 +12,7 @@ import "@blocknote/mantine/style.css";
 let root = null;
 let editorRef = null;
 
-function EditorApp({ initialMarkdown, onReady }) {
+function EditorApp({ initialMarkdown, onReady, onChange }) {
   const editor = useCreateBlockNote();
   const [, setLoaded] = useState(false);
 
@@ -26,6 +26,7 @@ function EditorApp({ initialMarkdown, onReady }) {
       if (!cancelled) {
         editorRef = editor;
         setLoaded(true);
+        if (onChange) editor.onChange(() => onChange());
         onReady?.();
       }
     })();
@@ -38,12 +39,15 @@ function EditorApp({ initialMarkdown, onReady }) {
   return <BlockNoteView editor={editor} />;
 }
 
-export function mount(elementId, initialMarkdown = "") {
+// onChange (optionnel) : notifié à chaque modification du contenu (aperçu en direct,
+// voir app.js) — pas de valeur passée, l'appelant relit via getMarkdown() s'il en a
+// besoin, pour ne jamais désynchroniser deux façons différentes de lire l'état éditeur.
+export function mount(elementId, initialMarkdown = "", onChange) {
   unmount();
   const el = document.getElementById(elementId);
   root = createRoot(el);
   return new Promise((resolve) => {
-    root.render(<EditorApp initialMarkdown={initialMarkdown} onReady={resolve} />);
+    root.render(<EditorApp initialMarkdown={initialMarkdown} onReady={resolve} onChange={onChange} />);
   });
 }
 

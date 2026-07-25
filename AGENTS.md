@@ -26,8 +26,10 @@ than mocking API calls — see the "Tests e2e" section in `README.md` for how to
   that predates the `usermod`, prefix Docker/Compose commands with `sg docker -c "..."`
   instead of opening a new shell (e.g. `sg docker -c "npm run e2e"`).
 - Each in-browser Zola rebuild (triggered by "Publier", site creation, or saving blog
-  settings) takes **~11-15s** with the full volks-typo theme (Sass, fonts, search
-  index) — assertions waiting on a post-publish status use 60s timeouts
+  settings) takes **~11-15s** with the full volks-typo theme (fonts, search index —
+  the theme's Sass is precompiled to `static/main.css` ahead of time, `compile_sass =
+  false`, so it's no longer part of this cost) — assertions waiting on a post-publish
+  status use 60s timeouts
   (`e2e/playwright.config.mjs`'s global timeout is 120s to match). Don't reintroduce
   short (~10s) timeouts on anything that triggers `rebuildAndPublishSite()`.
 - Tests that publish run against a **dedicated repo created via the Forgejo API in the

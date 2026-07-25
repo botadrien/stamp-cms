@@ -99,6 +99,32 @@
     margin: 0 auto;
     padding: 48px 24px;
   }
+  /* Écran d'édition : deux volets côte à côte plutôt que la colonne unique centrée
+     ci-dessus (voir renderEditor() dans app.js). */
+  main.editor-split {
+    max-width: none;
+    margin: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+    padding: 24px;
+  }
+  main.editor-split .editor-pane,
+  main.editor-split .preview-pane {
+    flex: 1 1 50%;
+    min-width: 0;
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  main.editor-split #previewFrame {
+    flex: 1 1 auto;
+    min-height: 480px;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+  }
   button {
     background: var(--accent);
     color: white;

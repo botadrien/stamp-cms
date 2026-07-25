@@ -65,7 +65,10 @@ function buildConfigToml({ title, baseUrl, standalonePages }) {
 
   return `title = "${escapeToml(title)}"
 base_url = "${escapeToml(baseUrl)}"
-compile_sass = true
+# Thème vendoré en CSS précompilé (static/main.css, voir
+# scripts/fetch-theme-volks-typo.sh) — plus de sass/ à compiler, ça évite de repayer ce
+# coût à chaque build (publication et surtout chaque aperçu live).
+compile_sass = false
 build_search_index = true
 
 taxonomies = [
@@ -287,10 +290,14 @@ async function publishFile(owner, repo, path, bytes) {
   await api.saveFileBytes(owner, repo, path, bytes, { sha, branch: "pages", message: "Publication du site" });
 }
 
-// Récupère tout le contenu Markdown actuel + le thème vendoré, buildit avec Zola (en
-// mémoire, dans le navigateur), et publie chaque fichier produit sur la branche pages.
-async function rebuildAndPublishSite(owner, repo) {
-  const contentFiles = await fetchContentFiles(owner, repo);
+// Construit le site en mémoire (thème + config + contenu) sans rien publier — utilisé
+// à la fois par rebuildAndPublishSite() et par buildPreviewSite() ci-dessous, qui ne
+// diffèrent qu'après cet appel (l'un publie sur pages, l'autre sert direct via le
+// service worker de preview). baseUrl doit être absolue (Zola l'exige) : l'URL réelle du
+// site publié pour rebuildAndPublishSite(), l'URL /preview/<owner>/<repo>/ pour
+// buildPreviewSite() — sinon Zola génère nav/assets/liens en absolu vers le vrai domaine
+// de prod (qui n'a pas encore ce contenu), hors du scope intercepté par sw.js.
+async function buildSiteFiles(owner, repo, contentFiles, baseUrl) {
   const themeFiles = await loadThemeFiles(CURRENT_THEME);
 
   const title = contentFiles["content/_index.md"]
@@ -302,15 +309,41 @@ async function rebuildAndPublishSite(owner, repo) {
 
   const files = {
     ...themeFiles,
-    "config.toml": buildConfigToml({ title, baseUrl: api.pagesUrl(owner, repo), standalonePages }),
+    "config.toml": buildConfigToml({ title, baseUrl, standalonePages }),
     ...contentFiles,
   };
   if (!files["content/_index.md"]) files["content/_index.md"] = buildIndexStub(repo);
   if (!files["content/blog/_index.md"]) files["content/blog/_index.md"] = buildBlogIndexStub();
 
+  return ZolaBuilder.buildSite(files);
+}
+
+// Rebuild d'aperçu : reprend un contentFiles déjà récupéré (voir openEditor() dans
+// app.js, qui le charge une seule fois par passage sur l'écran d'édition — pas de
+// nouvel appel réseau par frappe) et y substitue le brouillon en cours d'édition, non
+// encore enregistré. Ne publie rien : la sortie est servie directement par sw.js.
+// previewBaseUrl : voir previewBaseUrl() dans app.js — même chemin que celui utilisé
+// pour naviguer l'iframe.
+async function buildPreviewSite(owner, repo, editingPath, draftMarkdown, cachedContentFiles, previewBaseUrl) {
+  const contentFiles = { ...cachedContentFiles };
+  contentFiles[editingPath] = ensureFrontMatter(draftMarkdown, editingPath);
+
+  try {
+    return await buildSiteFiles(owner, repo, contentFiles, previewBaseUrl);
+  } catch (err) {
+    console.error("Échec du build Zola (aperçu):", err.log || err.message);
+    throw err;
+  }
+}
+
+// Récupère tout le contenu Markdown actuel + le thème vendoré, buildit avec Zola (en
+// mémoire, dans le navigateur), et publie chaque fichier produit sur la branche pages.
+async function rebuildAndPublishSite(owner, repo) {
+  const contentFiles = await fetchContentFiles(owner, repo);
+
   let output;
   try {
-    ({ files: output } = await ZolaBuilder.buildSite(files));
+    ({ files: output } = await buildSiteFiles(owner, repo, contentFiles, api.pagesUrl(owner, repo)));
   } catch (err) {
     console.error("Échec du build Zola:", err.log || err.message);
     throw err;

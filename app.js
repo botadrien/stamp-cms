@@ -6,12 +6,51 @@ let api = null;
 let currentUser = null;
 let currentRepo = null; // { owner, name }
 
+// Aperçu en direct de l'éditeur — voir sw.js (service worker qui sert /preview/...) et
+// buildPreviewSite() dans site-builder.js. swReady résout une fois le worker actif,
+// avant quoi pointer un iframe vers /preview/... ferait une vraie requête réseau (404).
+let swReady = null;
+// { owner, repo, path, contentFiles, building, dirty, debounceTimer } de l'écran
+// d'édition ouvert — recréé à chaque openEditor(), jamais réutilisé entre deux pages.
+let previewState = null;
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    swReady = Promise.resolve(null);
+    return;
+  }
+  swReady = navigator.serviceWorker
+    .register("sw.js")
+    .then(() => navigator.serviceWorker.ready) // { active, ... } une fois installé+activé
+    .catch(() => null);
+}
+
+// Le worker actif (registration.active), pas navigator.serviceWorker.controller : ce
+// dernier ne reflète que si le document *courant* est contrôlé, ce qui ne se met à jour
+// qu'après coup (clients.claim()) — alors qu'une *nouvelle* navigation (notre iframe) vers
+// une URL dans le scope du worker passe par lui dès qu'il est actif, sans lien avec le
+// statut de contrôle du document parent.
+async function getPreviewWorker() {
+  const registration = await swReady;
+  return registration ? registration.active : null;
+}
+
 function renderStatus(message, type = "info") {
   return `<p class="status ${type}">${message}</p>`;
 }
 
-function renderLogin(extraMessage = "") {
+// Quitte l'écran d'édition proprement : démonte l'éditeur riche et coupe tout aperçu en
+// cours/à venir (timer de débounce, build en vol dont le résultat serait jeté de toute
+// façon via le garde previewState !== state dans triggerPreviewBuild()).
+function leaveEditor() {
   RichEditor.unmount();
+  if (previewState) clearTimeout(previewState.debounceTimer);
+  previewState = null;
+}
+
+function renderLogin(extraMessage = "") {
+  leaveEditor();
+  appEl.classList.remove("editor-split");
   userbarEl.innerHTML = "";
   sidebarEl.hidden = true;
   sidebarEl.innerHTML = "";
@@ -125,6 +164,7 @@ function renderSidebar(route) {
 // interne, ou bouton Précédent/Suivant du navigateur).
 async function renderRoute() {
   if (!api) return; // pas encore authentifié, rien à router pour l'instant
+  appEl.classList.remove("editor-split"); // remis par renderEditor() si besoin
   const route = parseHash(window.location.hash);
   if (route.view === "dashboard") {
     currentRepo = null;
@@ -148,7 +188,7 @@ async function renderRoute() {
 window.addEventListener("hashchange", renderRoute);
 
 async function renderDashboard() {
-  RichEditor.unmount();
+  leaveEditor();
   userbarEl.innerHTML = `
     <span>${currentUser.login}</span>
     <button class="secondary" onclick="logout()">Déconnexion</button>
@@ -269,7 +309,7 @@ async function loadAndRenderList(owner, name, type, listElId, statusElId, emptyM
 }
 
 async function renderPages(owner, name) {
-  RichEditor.unmount();
+  leaveEditor();
   appEl.innerHTML = `
     <div class="card">
       <h2>Pages</h2>
@@ -288,7 +328,7 @@ async function renderPages(owner, name) {
 }
 
 async function renderPosts(owner, name) {
-  RichEditor.unmount();
+  leaveEditor();
   appEl.innerHTML = `
     <div class="card">
       <h2>Articles</h2>
@@ -328,7 +368,7 @@ function editPage(path) {
 }
 
 async function renderSiteSettings(owner, name) {
-  RichEditor.unmount();
+  leaveEditor();
   appEl.innerHTML = `
     <div class="card">
       <h2>Réglages du site</h2>
@@ -375,7 +415,7 @@ async function saveBlogTitle() {
 // d'une page tout juste ajoutée via "Ajouter une page", pas encore publiée donc pas
 // encore sur main — un 404 ici est normal, pas une vraie erreur).
 async function openEditor(owner, name, path) {
-  RichEditor.unmount();
+  leaveEditor();
   appEl.innerHTML = renderStatus("Chargement…", "info");
 
   let sha = null;
@@ -396,13 +436,25 @@ async function openEditor(owner, name, path) {
       return;
     }
   }
-  renderEditor(path, sha, content);
+
+  // Contenu des autres pages, chargé une seule fois par passage sur l'écran d'édition —
+  // réutilisé par chaque rebuild d'aperçu (pas de nouvel appel réseau par frappe). Si ça
+  // échoue, l'édition reste possible ; seul l'aperçu sera indisponible.
+  let contentFiles = {};
+  try {
+    contentFiles = await fetchContentFiles(owner, name);
+  } catch (err) {
+    contentFiles = null;
+  }
+
+  await renderEditor(path, sha, content, contentFiles);
 }
 
-function renderEditor(path, fileSha, fileContent) {
+async function renderEditor(path, fileSha, fileContent, contentFiles) {
   const backHash = siteHash(currentRepo.owner, currentRepo.name);
+  appEl.classList.add("editor-split");
   appEl.innerHTML = `
-    <div class="card">
+    <div class="card editor-pane">
       <button class="secondary" onclick='window.location.hash = ${JSON.stringify(backHash)}'>&larr; Retour aux pages</button>
       <h2 style="margin-top:16px;">${currentRepo.owner}/${currentRepo.name}</h2>
 
@@ -412,10 +464,110 @@ function renderEditor(path, fileSha, fileContent) {
       <button onclick="saveFile()">Publier</button>
       <div id="editorStatus"></div>
     </div>
+    <div class="card preview-pane">
+      <label>Aperçu</label>
+      <div id="previewStatus">${contentFiles ? "" : renderStatus("Aperçu indisponible.", "error")}</div>
+      <iframe id="previewFrame" title="Aperçu du site"></iframe>
+    </div>
   `;
   renderEditor.currentSha = fileSha;
   renderEditor.currentPath = path;
-  RichEditor.mount("editorMount", fileContent);
+
+  previewState = contentFiles && {
+    owner: currentRepo.owner,
+    repo: currentRepo.name,
+    path,
+    contentFiles,
+    building: false,
+    dirty: false,
+    debounceTimer: null,
+  };
+
+  await RichEditor.mount("editorMount", fileContent, onEditorContentChange);
+  if (previewState) triggerPreviewBuild();
+}
+
+// Débounce : une frappe redémarre le délai plutôt que de builder à chaque caractère —
+// un rebuild complet du site prend ~11-15s (voir AGENTS.md), pas question de l'appeler
+// en continu pendant la frappe.
+function onEditorContentChange() {
+  if (!previewState) return;
+  previewState.dirty = true;
+  clearTimeout(previewState.debounceTimer);
+  previewState.debounceTimer = setTimeout(triggerPreviewBuild, 1800);
+}
+
+async function triggerPreviewBuild() {
+  const state = previewState;
+  if (!state || state.building) {
+    if (state) state.dirty = true;
+    return;
+  }
+  state.dirty = false;
+  state.building = true;
+
+  const statusEl = document.getElementById("previewStatus");
+  if (statusEl) statusEl.innerHTML = renderStatus("Génération de l'aperçu…", "info");
+
+  try {
+    const draftMarkdown = await RichEditor.getMarkdown();
+    const { files } = await buildPreviewSite(
+      state.owner,
+      state.repo,
+      state.path,
+      draftMarkdown,
+      state.contentFiles,
+      previewBaseUrl(state.owner, state.repo)
+    );
+    if (previewState !== state) return; // écran quitté entre-temps
+
+    const worker = await getPreviewWorker();
+    if (worker) {
+      await sendToPreviewWorker(worker, { type: "update-preview", owner: state.owner, repo: state.repo, files });
+      reloadPreviewFrame(state);
+      if (statusEl) statusEl.innerHTML = "";
+    } else if (statusEl) {
+      statusEl.innerHTML = renderStatus("Aperçu indisponible (service worker non supporté).", "error");
+    }
+  } catch (err) {
+    if (previewState === state && statusEl) {
+      statusEl.innerHTML = renderStatus(`Aperçu indisponible : ${err.message}`, "error");
+    }
+  } finally {
+    if (previewState === state) {
+      state.building = false;
+      if (state.dirty) triggerPreviewBuild();
+    }
+  }
+}
+
+// Relatif à l'URL de la page (pas "/preview/..." en dur) : l'appli peut être déployée
+// sous un sous-chemin (voir config.js), et le scope du service worker ne couvre que son
+// propre répertoire — une URL absolue à la racine du domaine échapperait à ce scope et
+// ne serait jamais interceptée par sw.js (vraie requête réseau, 404).
+function previewUrl(owner, repo, path) {
+  const relative = `preview/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}${pageUrl(path)}`;
+  return new URL(relative, document.baseURI).href;
+}
+
+// base_url passée à Zola pour un build d'aperçu (voir buildPreviewSite() dans
+// site-builder.js) : sans ça, Zola génère nav/liens/assets en absolu vers le vrai domaine
+// de prod (api.pagesUrl), qui n'a pas encore ce contenu et n'est de toute façon pas dans
+// le scope intercepté par sw.js — la nav et les assets casseraient dans l'aperçu.
+function previewBaseUrl(owner, repo) {
+  const relative = `preview/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/`;
+  return new URL(relative, document.baseURI).href;
+}
+
+function reloadPreviewFrame(state) {
+  const frame = document.getElementById("previewFrame");
+  if (!frame) return;
+  const target = previewUrl(state.owner, state.repo, state.path);
+  if (frame.src === target) {
+    frame.contentWindow.location.reload();
+  } else {
+    frame.src = target;
+  }
 }
 
 async function saveFile() {
@@ -457,6 +609,7 @@ async function saveFile() {
 }
 
 async function init() {
+  registerServiceWorker();
   renderLoading("Vérification de la session…");
 
   try {
