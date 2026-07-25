@@ -2,69 +2,50 @@
 
 ## WordPress, sans le serveur.
 
-Un CMS qui tourne **entièrement dans votre navigateur** — l'édition du contenu comme la génération du site — sans serveur à héberger, sans base de données à sécuriser, sans rien savoir de Git.
-Le site produit est hébergé et publié directement sur [Codeberg](https://codeberg.org/).
+Un CMS qui tourne **entièrement dans votre navigateur** — l'édition du contenu et la génération du site.
 
-Inspiré de [Decap CMS](https://decapcms.org/) et [Tina CMS](https://tina.io/), mais pensé pour des personnes **non techniques qui ne savent pas ce qu'est Git** — là où Decap et Tina restent conçus par et pour des développeurs, et laissent transparaître la mécanique Git (branches, commits...).
+Gratuit à 100% et toujours :
+- aucun serveur à héberger (et payer) comme pour Wordpress
+- le site compilé est hébergé sur une plateforme gratuite comme Codeberg Pages.
+- plus sécurisé, pas de mise à jour à faire !
 
-![Interface d'administration : barre latérale façon WordPress avec Pages / Articles / Réglages](docs/screenshots/admin-pages.png)
-
-Projet réel, pas juste une spec : tout ce qui est listé ci-dessous fonctionne (voir "Tester en local").
-Mais très tôt dans sa vie — pas de version publiée, pas de garantie de stabilité, ruptures attendues.
-Voir "Roadmap" pour la suite et "Points à trancher / vigilance" pour ce qui reste ouvert.
+![Édition d'une page avec aperçu en direct du site généré par Zola, côte à côte](docs/screenshots/live-preview.png)
 
 ## Fonctionnalités
 
 - **Connexion sans serveur** : OAuth2 + PKCE directement vers Codeberg (pas besoin de bridge). Droits d'accès = rôles natifs de Codeberg.
-- **Édition riche** : éditeur visuel similaire à Notion ([BlockNote.js](https://www.blocknote.js.org/) sur [ProseMirror](https://prosemirror.net/)
+- **Édition riche** : éditeur visuel similaire à Notion ([BlockNote.js](https://www.blocknote.js.org/) sur [ProseMirror](https://prosemirror.net/))
   Contenu stocké en Markdown, source de vérité dans le dépôt Git, commit direct à chaque enregistrement.
 - **Génération du site** avec [Zola](https://www.getzola.org/), compilé en WebAssembly et exécuté **dans le navigateur** à chaque publication.
+- **Aperçu en direct** : pendant l'édition, un volet à côté de l'éditeur montre le site réellement généré par Zola (nav, thème, mise en page) à partir du brouillon en cours — rien n'est publié tant qu'on n'a pas cliqué sur "Publier".
 - **Publication en un clic** : chaque "Publier" compile le site et le publie sur la branche `pages` du dépôt.
 - **Contenu structuré** : pages et articles de blog gérés séparément (triés par date pour le blog), écran "Réglages du site" pour le titre du blog.
 - **Thème** : un thème vendoré, volks-typo, appliqué à chaque site créé (choix de thème prévu plus tard, voir "Roadmap").
 
-## Roadmap
-
+## Feuille de route
 
 1. **Gestion des médias** (images, etc.) dans le dépôt Git.
 2. **Support multi-fournisseur Git** (GitLab, GitHub...) via une couche d'abstraction commune.
 3. **Système de plugins/thèmes**, avec une API d'extension stable pensée dès maintenant pour éviter un refactor douloureux plus tard, en vue d'une marketplace de plugins et de thèmes.
 
-## Tester en local
+## État de l'art / Inspirations
 
-Le POC (`index.template.html`, `config.js`, `pkce.js`, `auth.js`, `api.js`, `app.js`, `site-builder.js`) couvre le login OAuth+PKCE, la liste des dépôts, et la lecture/écriture d'un fichier Markdown via commit direct, avec un éditeur riche (BlockNote.js, voir `editor-src/editor.jsx`) plutôt que du Markdown brut.
+- **[Decap CMS](https://decapcms.org/) / [Tina CMS](https://tina.io/)** — CMS Git, mais orientés développeurs
+- **[Sveltia CMS](https://github.com/sveltia/sveltia-cms)** — successeur spirituel de Decap, UI plus moderne, config toujours technique
+- **[Publii](https://getpublii.com/)** — facile à utiliser sans être développeur·euse. L'app desktop à installer rend la collaboration compliquée.
+- **[GitCMS](https://github.com/BestPlayerMMIII/GitCMS)** (open source, éditeur TipTap) et **[gitcms.dev](https://gitcms.dev/)** (service commercial, mais passe par une GitHub App donc nécessite un backend — hors scope ici)
 
-BlockNote (React + ProseMirror + Mantine) est trop imbriqué pour être chargé fiablement via des `<script>`/CDN sans bundler (duplication de singletons ProseMirror entre le point d'entrée principal et ses sous-modules) — un petit build esbuild (`npm run build`) produit `editor.bundle.js`/`.css`.
-Ce même build génère aussi `index.html` à partir de `index.template.html` (le fichier à éditer — `index.html` est généré, gitignore) en ajoutant un `?v=<hash du commit>` à chaque script/style local, pour que les navigateurs (ou un CDN devant Codeberg Pages) rechargent bien les fichiers après un déploiement au lieu de resservir une version périmée en cache.
-Le reste de l'app reste des scripts classiques sans build.
+## Développement / Contribuer
 
-### Génération du site (Zola en WebAssembly)
+### Lancer en local
 
-À la création d'un site et à chaque "Publier", tout le site (config + templates fixes + tout le Markdown sous `content/`) est **rebuildé avec [Zola](https://www.getzola.org/) réellement compilé en WebAssembly**, exécuté en mémoire dans le navigateur (aucun fichier réel touché, aucun serveur), puis chaque fichier HTML produit est publié sur la branche `pages`.
-C'est un vrai générateur de site statique — mise en page partagée, navigation entre pages générée automatiquement par les fonctions Tera de Zola (`section.pages`, `get_section`), résolution des liens internes — pas un export page par page fait main.
+1. Créer une OAuth App sur Codeberg (**Settings → Applications**), en **décochant "Confidential Client"** , avec comme Redirect URI `http://localhost:8080`
+2. Coller le `clientId` généré dans `config.js`
+3. `npm install`
+4. `make run`
+5. Ouvrir `http://localhost:8080/`
 
-Deux pistes explorées et écartées avant ça, pour référence :
-- **Pipeline CI (Codeberg/Forgejo Actions + Eleventy)** — l'architecture "normale" pour un générateur de site.
-  Écartée : Forgejo Actions est désactivé par défaut par dépôt (activation manuelle dans Settings > Units), et l'alternative Woodpecker CI de Codeberg nécessite de remplir un formulaire et d'attendre la validation manuelle d'un·e bénévole — incompatible avec "aucune configuration technique pour l'utilisateur·rice".
-- **Hugo compilé en WebAssembly** — écarté après un vrai essai : Hugo compile mais son pipeline d'assets (Sass) dépend de `os/exec` pour appeler un binaire Dart Sass externe, ce qu'un bac à sable WebAssembly ne permet pas (aucun lancement de process).
-
-Zola a fonctionné parce que son build (`getzola/zola`, patché sur la branche `wasm` d'un fork, voir [ce billet](https://dstaley.com/posts/running-zola-on-wasm/)) ne dépend d'aucun process externe : rayon (parallélisme) désactivé, `canonicalize()` contourné (non supporté par WASI), et Sass compilé par `grass` (Rust pur) plutôt que par LibSass/Dart Sass.
-Le binaire (`vendor/zola.wasm`, ~15 Mo, commité tel quel car sa compilation demande un toolchain Rust + wasi-sdk trop lourd pour `npm run build` — voir `scripts/build-zola-wasm.sh` pour le reconstruire) tourne dans le navigateur via [`@bjorn3/browser_wasi_shim`](https://github.com/bjorn3/browser_wasi_shim), avec un système de fichiers entièrement en mémoire (voir `editor-src/zola-builder.js`).
-
-Chaque site est buildé avec le même thème Zola vendoré, **volks-typo** (`themes/volks-typo/`, récupéré via `scripts/fetch-theme-volks-typo.sh` — voir `site-builder.js` pour le point d'accroche prévu pour un choix de thème plus tard).
-Le contenu `content/*.md` est réparti en deux types selon son chemin : les pages standalone (`content/`) et les articles de blog (`content/blog/`, triés par date, flux RSS/Atom générés).
-L'écran "pages du site" liste les deux séparément, avec un formulaire "Ajouter" propre à chacun ; un écran "Réglages du site" permet d'éditer le titre du blog (seul réglage éditable pour l'instant, stocké dans le front matter de `content/_index.md`).
-
-1. Crée une OAuth App sur Codeberg (**Settings → Applications**), en **décochant "Confidential Client"** (client public, sans secret, requis pour PKCE), avec un Redirect URI qui correspond exactement à l'URL de déploiement (ex. `http://localhost:8080/` en local).
-2. Colle le `clientId` généré dans `config.js`.
-3. Installe les dépendances et sers le dossier (obligatoire — `file://` casse `fetch` et `crypto.subtle`, et OAuth n'accepte pas les chemins locaux comme Redirect URI) :
-   ```bash
-   npm install
-   make run
-   ```
-4. Va sur `http://localhost:8080/`, connecte-toi, ouvre un dépôt, édite/crée un fichier `.md` et enregistre — ça doit produire un vrai commit sur Codeberg.
-
-## Tests e2e (Forgejo local)
+### Lancer les tests
 
 Plutôt que de mocker les appels API, les tests e2e (`e2e/`) font tourner une vraie instance [Forgejo](https://forgejo.org/) en local via Docker et pilotent un vrai navigateur (Playwright) à travers le flow complet : login OAuth2+PKCE réel (formulaire de connexion, écran de consentement), édition et commit d'un fichier — vérifié ensuite via l'API Forgejo elle-même.
 
@@ -81,29 +62,73 @@ npm run e2e:test   # lance les tests Playwright (démarre aussi le serveur stati
 npm run e2e:down   # arrête et nettoie
 ```
 
-Point notable découvert en construisant ces tests : Codeberg répond aux requêtes cross-origin (CORS) sur `/login/oauth/access_token` et sur `/api/v1/*` avec les en-têtes `Access-Control-Allow-Origin` — sans quoi le POC casserait en `Failed to fetch` — mais Forgejo vanilla ne le fait pas nativement sur ces routes.
-`e2e/Caddyfile` reproduit ce comportement via un reverse proxy devant Forgejo, pour que l'environnement de test colle au vrai comportement de production.
 
 ## Points à trancher / vigilance
 
-- Conflits d'édition simultanée (verrouillage simple vs temps réel type Yjs)
+- Conflits d'édition simultanée (verrouillage simple vs temps réel type [Yjs](https://yjs.dev/))
 - Sécurité du token OAuth stocké côté navigateur
 - Quotas de l'API du fournisseur Git
-- Prévisualisation avant publication
 - Domaine personnalisé
 - Médias dans le dépôt Git : ça marche, mais avec des limites de taille (repos volumineux, fichiers individuels plafonnés) — à surveiller si beaucoup de photos/vidéos
 - Rester multi-fournisseur à terme sans complexifier le MVP
 
-## Piste explorée puis abandonnée : isomorphic-git
+## Pistes explorées et mises de côté
 
-Une tentative de remplacer l'API REST "contents" de Forgejo par du vrai git (clone/fetch/push en mémoire dans le navigateur, via isomorphic-git + lightning-fs) a été menée pour de bon — un seul push au lieu de N requêtes GET/PUT par fichier, et une vraie détection de conflit par fast-forward côté serveur plutôt que le verrou par sha de Forgejo.
+### vrai client git en frontend
+
+Une tentative de remplacer l'API REST "contents" de Forgejo par du vrai git (clone/fetch/push en mémoire dans le navigateur, via [isomorphic-git](https://isomorphic-git.org/) + [lightning-fs](https://github.com/isomorphic-git/lightning-fs)) a été menée pour de bon — un seul push au lieu de N requêtes GET/PUT par fichier, et une vraie détection de conflit par fast-forward côté serveur plutôt que le verrou par sha de Forgejo.
 Le code fonctionne et est vérifié par la suite e2e complète (voir la branche [`explore/isomorphic-git`](https://github.com/botadrien/cmstatic/tree/explore/isomorphic-git)), mais n'a pas été mergé sur `main` : Codeberg ne renvoie pas d'en-tête CORS sur ses endpoints git smart-HTTP (contrairement à `/api/v1/*`), ce qui oblige à passer par un proxy CORS pour cloner/pousser depuis le navigateur.
 Le seul proxy public gratuit (`cors.isomorphic-git.org`) s'est montré trop instable en pratique (erreurs Cloudflare 403/502 constatées aussi bien depuis un environnement de test que depuis une IP résidentielle normale) pour être utilisable en prod telle quelle.
 À revisiter si un proxy auto-hébergé devient acceptable, ou si Codeberg ajoute un jour le support CORS sur ces routes.
 
-## État de l'art
+### Compiler le site dans des actions CI plutôt qu’en frontend
 
-- **Decap CMS / Tina CMS** — CMS Git, mais orientés développeurs
-- **Sveltia CMS** — successeur spirituel de Decap, UI plus moderne, config toujours technique
-- **Publii** — non-dev-friendly mais app desktop à installer, pas 100% web
-- **GitCMS** (open source, éditeur TipTap) et **gitcms.dev** (service commercial, mais passe par une GitHub App donc nécessite un backend — hors scope ici)
+C’est l'architecture "normale" pour un générateur de site statiques : compiler le site dans les GitHub Actions ou Codeberg/Forgejo Actions.
+- Avantage : plus simple à mettre en place (pas besoin de compiler en wasm le cli de SSG)
+- Avantage : plus rapide que le navigateur
+- Avantage : scale probablement mieux
+- Inconvénient : on a envie de permettre des prévisualisations live, il faut donc faire tourner le SSG dans le navigateur
+- Inconvénient : sur Codeberg les actions ne sont pas automatiquement ouvertes à toustes
+- Inconvénient : on veut être autant indépendant que possible de systèmes externes
+
+### [Hugo](https://gohugo.io/) plutôt que Zola
+
+écarté après un vrai essai : Hugo compile en WASM mais son pipeline d'assets (Sass) dépend de `os/exec` pour appeler un binaire Dart Sass externe, ce qu'un bac à sable WebAssembly ne permet pas (aucun lancement de process).
+
+## Détails techniques
+
+### Forges git
+
+Codeberg répond aux requêtes cross-origin (CORS) sur `/login/oauth/access_token` et sur `/api/v1/*` avec les en-têtes `Access-Control-Allow-Origin`.
+Mais Forgejo vanilla ne le fait pas nativement sur ces routes.
+`e2e/Caddyfile` reproduit ce comportement via un reverse proxy devant Forgejo, pour que l'environnement de test colle au vrai comportement de production.
+
+### Génération du site dans le navigateur
+
+On a compilé [Zola](https://www.getzola.org/) en WASM grace au travail de Dylan Staley cf [ce billet](https://dstaley.com/posts/running-zola-on-wasm/).
+C'est possible car on fait en sorte que Zola ne dépend d'aucun process externe : `rayon` (parallélisme) désactivé, `canonicalize()` contourné (non supporté par WASI), et Sass compilé par `grass` (Rust pur) plutôt que par LibSass/Dart Sass.
+Le binaire compilé `vendor/zola.wasm` fait ~15 Mo
+On le commit tel quel car sa compilation demande un toolchain Rust + wasi-sdk trop lourd pour `npm run build` (cf `scripts/build-zola-wasm.sh`)
+Il tourne dans le navigateur via [`@bjorn3/browser_wasi_shim`](https://github.com/bjorn3/browser_wasi_shim)
+On l'utilise avec un système de fichiers entièrement en mémoire (voir `editor-src/zola-builder.js`).
+
+Lors de la publication du site, on l'éxecute navigateur puis chaque fichier compilé (HTML, CSS images) produit est publié sur la branche `pages`.
+
+Chaque site est buildé avec le même thème Zola vendoré, **volks-typo** (`themes/volks-typo/`, récupéré via `scripts/fetch-theme-volks-typo.sh` — voir `site-builder.js` pour le point d'accroche prévu pour un choix de thème plus tard).
+
+### Aperçu en direct
+
+Pendant l'édition, un rebuild Zola tourne en arrière-plan (débounce ~1,8s après la dernière frappe) sur le contenu déjà publié + le brouillon en cours, non enregistré (`buildPreviewSite()` dans `site-builder.js`).
+Sa sortie (un site multi-pages avec de vrais liens relatifs entre pages/assets) est servie par un **service worker** (`sw.js`) qui intercepte les requêtes sous `/preview/<owner>/<repo>/...` et répond directement depuis une map en mémoire — pas de blob URL ni de `srcdoc` d'iframe, qui casseraient la navigation entre pages.
+`config.toml` reçoit un `base_url` différent pour ce build (`/preview/...` plutôt que l'URL réelle du site publié), sinon Zola génère nav/liens/assets en absolu vers un domaine de prod qui n'a pas encore ce contenu.
+Rien n'est publié sur Codeberg tant qu'on ne clique pas sur "Publier" — l'aperçu ne touche que la mémoire du navigateur.
+
+### Inclusion des packages JS
+
+BlockNote (React + ProseMirror + Mantine) est trop imbriqué pour un `<script>`/CDN sans bundler (duplication de singletons ProseMirror).
+`zola-builder.js` importe aussi un package npm (`@bjorn3/browser_wasi_shim`), donc même traitement.
+`npm run build` (esbuild) produit deux bundles IIFE : `editor.bundle.js`/`.css` et `zola-builder.bundle.js`.
+Il génère ensuite `index.html` depuis `index.template.html` (le fichier à éditer, `index.html` est gitignore).
+Chaque script/style local reçoit un `?v=<hash du commit>`, pour éviter le cache périmé après déploiement.
+Le reste de l'app : scripts classiques, sans build.
+
