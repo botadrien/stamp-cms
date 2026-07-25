@@ -7,4 +7,5 @@ playwright-report
 editor.bundle.js
 editor.bundle.css
 zola-builder.bundle.js
+git-client.bundle.js
 /index.html

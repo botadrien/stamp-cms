@@ -153,15 +153,17 @@ async function createSite() {
   try {
     const repo = await api.createRepo(name);
     const owner = repo.owner.login;
-    await api.createBranch(owner, repo.name, "pages", repo.default_branch);
     await api.createPagesWebhook(owner, repo.name);
 
-    await api.saveFile(owner, repo.name, "content/_index.md", buildIndexStub(repo.name), {
-      message: "Site initial",
-    });
-    await api.saveFile(owner, repo.name, "content/blog/_index.md", buildBlogIndexStub(), {
-      message: "Site initial",
-    });
+    // Le reste du CMS suppose toujours "main" (voir site-builder.js) — cohérent avec
+    // l'ancien comportement REST, qui écrivait déjà sur "main" en dur ici plutôt que sur
+    // repo.default_branch.
+    await GitClient.sync(owner, repo.name, "main");
+    await GitClient.createBranch(owner, repo.name, "pages", "main");
+
+    await GitClient.writeFile(owner, repo.name, "main", "content/_index.md", buildIndexStub(repo.name));
+    await GitClient.writeFile(owner, repo.name, "main", "content/blog/_index.md", buildBlogIndexStub());
+    await GitClient.commitAndPush(owner, repo.name, "main", "Site initial");
 
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
     await rebuildAndPublishSite(owner, repo.name);
@@ -313,12 +315,11 @@ async function openEditor(owner, name, path) {
   RichEditor.unmount();
   appEl.innerHTML = renderStatus("Chargement…", "info");
 
-  let sha = null;
   let content = "";
   try {
-    const file = await api.getFile(owner, name, path, "main", { silent404: true });
-    sha = file.sha;
-    content = stripFrontMatter(decodeBase64Utf8(file.content));
+    await GitClient.sync(owner, name, "main");
+    const markdown = await GitClient.readFile(owner, name, "main", path);
+    content = stripFrontMatter(markdown);
   } catch (err) {
     if (err.status !== 404) {
       const backHash = siteHash(owner, name);
@@ -331,10 +332,10 @@ async function openEditor(owner, name, path) {
       return;
     }
   }
-  renderEditor(path, sha, content);
+  renderEditor(path, content);
 }
 
-function renderEditor(path, fileSha, fileContent) {
+function renderEditor(path, fileContent) {
   const backHash = siteHash(currentRepo.owner, currentRepo.name);
   appEl.innerHTML = `
     <div class="card">
@@ -348,7 +349,6 @@ function renderEditor(path, fileSha, fileContent) {
       <div id="editorStatus"></div>
     </div>
   `;
-  renderEditor.currentSha = fileSha;
   renderEditor.currentPath = path;
   RichEditor.mount("editorMount", fileContent);
 }
@@ -361,10 +361,8 @@ async function saveFile() {
 
   let markdownSaved = false;
   try {
-    const result = await api.saveFile(currentRepo.owner, currentRepo.name, path, content, {
-      sha: renderEditor.currentSha,
-    });
-    renderEditor.currentSha = result.content.sha;
+    await GitClient.writeFile(currentRepo.owner, currentRepo.name, "main", path, content);
+    await GitClient.commitAndPush(currentRepo.owner, currentRepo.name, "main", `Mise à jour de ${path}`);
     markdownSaved = true;
 
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
@@ -372,8 +370,6 @@ async function saveFile() {
 
     statusEl.innerHTML = renderStatus("Publié avec succès sur Codeberg ✓", "success");
   } catch (err) {
-    // Forgejo/Codeberg répondent 422 (pas 409) quand le sha envoyé ne correspond plus au
-    // fichier côté serveur — ça n'arrive que si on avait un sha (mise à jour, pas création).
     if (markdownSaved) {
       // Le contenu est bien enregistré (source de vérité) ; seule la republication du
       // site a échoué — ne pas laisser croire que la page elle-même n'est pas publiée.
@@ -383,8 +379,10 @@ async function saveFile() {
       );
       return;
     }
+    // Un push non fast-forward (quelqu'un d'autre a modifié la branche entre-temps)
+    // remonte avec err.code === "PushRejectedError" — voir git-client.js.
     const message =
-      renderEditor.currentSha && err.status === 422
+      err.code === "PushRejectedError"
         ? "Cette page a été modifiée entre-temps ailleurs — retourne à la liste des pages et rouvre-la avant de publier, pour ne pas écraser ce changement."
         : err.message;
     statusEl.innerHTML = renderStatus(message, "error");

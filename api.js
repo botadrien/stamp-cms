@@ -3,8 +3,10 @@
 
 // Messages non-techniques par défaut selon le code HTTP — jamais de JSON/stack trace
 // brut affiché à l'utilisateur·rice (voir docs/objective.md, section "Gestion des
-// erreurs"). Les cas qui ont besoin de plus de contexte (ex. conflit d'édition, nom de
-// site déjà pris) sont affinés au niveau des appelants via `err.status`.
+// erreurs"). Les cas qui ont besoin de plus de contexte (ex. nom de site déjà pris) sont
+// affinés au niveau des appelants via `err.status` — les conflits d'édition de contenu
+// passent désormais par git (voir friendlyGitErrorMessage() dans editor-src/git-client.js),
+// plus par cette API REST.
 function friendlyApiError(status) {
   if (status === 401) return "Ta session a expiré, reconnecte-toi.";
   if (status === 403) return "Tu n'as pas les droits nécessaires pour cette action.";
@@ -13,17 +15,6 @@ function friendlyApiError(status) {
   if (status === 422) return "Cette action n'est pas possible telle quelle.";
   if (status >= 500) return "Codeberg rencontre un problème de son côté, réessaie dans un instant.";
   return "Une erreur est survenue, réessaie.";
-}
-
-// btoa(String.fromCharCode(...bytes)) plante sur de gros fichiers (dépassement de la
-// pile d'appel) — on construit la chaîne binaire par blocs.
-function bytesToBase64(bytes) {
-  const chunkSize = 8192;
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
 }
 
 class ForgejoApi {
@@ -80,14 +71,6 @@ class ForgejoApi {
     });
   }
 
-  // Crée une branche à partir d'une autre (utilisé pour la branche "pages")
-  createBranch(owner, repo, newBranchName, oldBranchName) {
-    return this._request(`/repos/${owner}/${repo}/branches`, {
-      method: "POST",
-      body: JSON.stringify({ new_branch_name: newBranchName, old_branch_name: oldBranchName }),
-    });
-  }
-
   // Webhook nécessaire pour que Codeberg Pages serve réellement la branche "pages" —
   // sans ça, la branche existe mais rien n'est publié (voir docs.codeberg.org/codeberg-pages/,
   // section Webhooks : le type de webhook doit être "forgejo", filtré sur la branche
@@ -102,53 +85,6 @@ class ForgejoApi {
         branch_filter: "pages",
         active: true,
       }),
-    });
-  }
-
-  // Liste le contenu d'un dossier dans un dépôt (racine par défaut). 404 si le dossier
-  // n'existe pas encore (site tout juste créé, pas encore de page à part l'accueil).
-  listContents(owner, repo, path = "", ref) {
-    const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
-    return this._request(`/repos/${owner}/${repo}/contents/${path}${query}`);
-  }
-
-  // Récupère un fichier (contenu encodé en base64 par l'API). `silent404` : ne pas logger
-  // en erreur console un 404 ici (utilisé pour de simples vérifications d'existence).
-  getFile(owner, repo, path, ref, { silent404 = false } = {}) {
-    const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
-    return this._request(`/repos/${owner}/${repo}/contents/${path}${query}`, { silent404 });
-  }
-
-  // Crée ou met à jour un fichier. `sha` requis uniquement si le fichier existe déjà.
-  async saveFile(owner, repo, path, content, { sha, message, branch = "main" } = {}) {
-    const body = {
-      content: btoa(unescape(encodeURIComponent(content))), // encode UTF-8 -> base64
-      message: message || (sha ? `Mise à jour de ${path}` : `Création de ${path}`),
-      branch,
-    };
-    if (sha) body.sha = sha;
-
-    return this._request(`/repos/${owner}/${repo}/contents/${path}`, {
-      method: sha ? "PUT" : "POST",
-      body: JSON.stringify(body),
-    });
-  }
-
-  // Comme saveFile(), mais pour des octets bruts (Uint8Array) plutôt qu'une chaîne — sortie
-  // du build Zola, qui mélange HTML/CSS générés et assets binaires (polices, icônes)
-  // recopiés tels quels. L'aller-retour encodeURIComponent/unescape de saveFile() suppose
-  // une chaîne UTF-8 et corromprait ces derniers.
-  async saveFileBytes(owner, repo, path, bytes, { sha, message, branch = "main" } = {}) {
-    const body = {
-      content: bytesToBase64(bytes),
-      message: message || (sha ? `Mise à jour de ${path}` : `Création de ${path}`),
-      branch,
-    };
-    if (sha) body.sha = sha;
-
-    return this._request(`/repos/${owner}/${repo}/contents/${path}`, {
-      method: sha ? "PUT" : "POST",
-      body: JSON.stringify(body),
     });
   }
 

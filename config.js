@@ -27,4 +27,13 @@ const CONFIG = window.__CMS_TEST_CONFIG__ || {
   // Domaine où Codeberg Pages sert les sites publiés (voir api.js:pagesUrl) —
   // non pertinent pour une instance Forgejo auto-hébergée sans pages-server.
   pagesDomain: "codeberg.page",
+
+  // Codeberg ne renvoie pas d'en-tête CORS sur ses endpoints git smart-HTTP (contrairement
+  // à /api/v1/*, voir CONFIG.instanceUrl) — isomorphic-git (editor-src/git-client.js) a donc
+  // besoin de passer par un proxy CORS pour cloner/pousser depuis le navigateur.
+  // https://cors.isomorphic-git.org est le proxy gratuit communautaire des mainteneurs
+  // d'isomorphic-git (best-effort, sans garantie de service). Les tests e2e (voir
+  // e2e/seed.mjs) laissent ce champ vide : leur Forgejo local est déjà CORS-activé
+  // directement par e2e/Caddyfile, donc aucun proxy n'y est nécessaire.
+  corsProxy: "https://cors.isomorphic-git.org",
 };

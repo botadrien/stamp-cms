@@ -122,10 +122,6 @@ generate_feeds = true
 `;
 }
 
-function decodeBase64Utf8(base64) {
-  return decodeURIComponent(escape(atob(base64)));
-}
-
 function titleFromPath(path) {
   const base = path.split("/").pop().replace(/\.md$/, "");
   const words = base.replace(/[-_]+/g, " ").trim();
@@ -156,30 +152,15 @@ function stripFrontMatter(markdown) {
   return match ? markdown.slice(match[0].length) : markdown;
 }
 
-function encodeUtf8Base64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
-}
-
-// Parcourt récursivement content/ sur main et appelle visit(path) pour chaque fichier
-// .md trouvé — partagé entre fetchContentFiles() et listContentPages().
+// Synchronise la copie de travail locale (clone/fetch + reset dur, voir git-client.js)
+// puis parcourt récursivement content/ pour appeler visit(path) sur chaque fichier .md
+// trouvé — partagé entre fetchContentFiles() et listContentPages().
 async function walkContentFiles(owner, repo, visit) {
-  async function walk(dirPath) {
-    let entries;
-    try {
-      entries = await api.listContents(owner, repo, dirPath, "main");
-    } catch (err) {
-      if (err.status === 404) return; // pas encore de contenu à ce chemin
-      throw err;
-    }
-    for (const entry of entries) {
-      if (entry.type === "dir") {
-        await walk(entry.path);
-      } else if (entry.path.endsWith(".md")) {
-        await visit(entry.path);
-      }
-    }
+  await GitClient.sync(owner, repo, "main");
+  const paths = await GitClient.listFiles(owner, repo, "main", "content");
+  for (const path of paths) {
+    if (path.endsWith(".md")) await visit(path);
   }
-  await walk("content");
 }
 
 // Parcourt récursivement content/ sur main et retourne { "content/x.md": "...", ... }.
@@ -188,11 +169,11 @@ async function walkContentFiles(owner, repo, visit) {
 async function fetchContentFiles(owner, repo) {
   const files = {};
   await walkContentFiles(owner, repo, async (path) => {
-    const file = await api.getFile(owner, repo, path, "main");
+    const markdown = await GitClient.readFile(owner, repo, "main", path);
     // Garantit un front matter même sur des pages créées avant que ça soit
     // automatique (ou modifiées hors du POC) — Zola refuse de builder le site
     // entier si UN SEUL fichier content/*.md en est dépourvu.
-    files[path] = ensureFrontMatter(decodeBase64Utf8(file.content), path);
+    files[path] = ensureFrontMatter(markdown, path);
   });
   return files;
 }
@@ -211,9 +192,9 @@ async function listContentPages(owner, repo) {
   const pages = [];
   await walkContentFiles(owner, repo, async (path) => {
     if (path.endsWith("_index.md")) return;
-    const file = await api.getFile(owner, repo, path, "main");
+    const markdown = await GitClient.readFile(owner, repo, "main", path);
     const type = path.startsWith("content/blog/") ? "post" : "page";
-    pages.push({ path, title: extractTitle(decodeBase64Utf8(file.content), path), type });
+    pages.push({ path, title: extractTitle(markdown, path), type });
   });
   pages.sort((a, b) => a.title.localeCompare(b.title));
   return pages;
@@ -250,9 +231,10 @@ function nextAvailablePagePath(title, existingPaths, dirPrefix = "content/") {
 // Titre actuel du blog (front matter de content/_index.md), pour pré-remplir l'écran
 // "Réglages du site". Nom du dépôt par défaut si le fichier n'existe pas encore.
 async function getBlogTitle(owner, repo) {
+  await GitClient.sync(owner, repo, "main");
   try {
-    const file = await api.getFile(owner, repo, "content/_index.md", "main");
-    return extractTitle(decodeBase64Utf8(file.content), "content/_index.md");
+    const markdown = await GitClient.readFile(owner, repo, "main", "content/_index.md");
+    return extractTitle(markdown, "content/_index.md");
   } catch (err) {
     if (err.status === 404) return repo;
     throw err;
@@ -260,35 +242,18 @@ async function getBlogTitle(owner, repo) {
 }
 
 async function setBlogTitle(owner, repo, title) {
-  let sha = null;
-  try {
-    const existing = await api.getFile(owner, repo, "content/_index.md", "main", { silent404: true });
-    sha = existing.sha;
-  } catch (err) {
-    if (err.status !== 404) throw err;
-  }
-  await api.saveFile(owner, repo, "content/_index.md", buildIndexStub(title), {
-    sha,
-    message: "Mise à jour du titre du blog",
-  });
-}
-
-// Écrit un fichier (octets bruts — sortie du build Zola, texte et binaire mélangés) sur
-// la branche pages, en récupérant son sha existant si besoin (sinon Forgejo refuse
-// l'écrasement — même logique que pour la branche main).
-async function publishFile(owner, repo, path, bytes) {
-  let sha = null;
-  try {
-    const existing = await api.getFile(owner, repo, path, "pages", { silent404: true });
-    sha = existing.sha;
-  } catch (err) {
-    if (err.status !== 404) throw err;
-  }
-  await api.saveFileBytes(owner, repo, path, bytes, { sha, branch: "pages", message: "Publication du site" });
+  await GitClient.sync(owner, repo, "main");
+  await GitClient.writeFile(owner, repo, "main", "content/_index.md", buildIndexStub(title));
+  await GitClient.commitAndPush(owner, repo, "main", "Mise à jour du titre du blog");
 }
 
 // Récupère tout le contenu Markdown actuel + le thème vendoré, buildit avec Zola (en
-// mémoire, dans le navigateur), et publie chaque fichier produit sur la branche pages.
+// mémoire, dans le navigateur), et publie le résultat sur la branche pages : la copie de
+// travail locale est réconciliée pour correspondre exactement à la sortie de Zola (tout
+// fichier suivi qui n'est plus dans `output` est supprimé — vraie sémantique de
+// remplacement, contrairement à l'ancienne boucle REST qui ne touchait que les chemins
+// connus et ne supprimait jamais les fichiers publiés devenus obsolètes), puis un seul
+// commit+push.
 async function rebuildAndPublishSite(owner, repo) {
   const contentFiles = await fetchContentFiles(owner, repo);
   const themeFiles = await loadThemeFiles(CURRENT_THEME);
@@ -316,9 +281,18 @@ async function rebuildAndPublishSite(owner, repo) {
     throw err;
   }
 
-  for (const [path, bytes] of Object.entries(output)) {
-    await publishFile(owner, repo, path, bytes);
+  await GitClient.sync(owner, repo, "pages");
+  const existingPaths = await GitClient.listFiles(owner, repo, "pages", "");
+  const outputPaths = new Set(Object.keys(output));
+  for (const path of existingPaths) {
+    if (!outputPaths.has(path)) {
+      await GitClient.remove(owner, repo, "pages", path);
+    }
   }
+  for (const [path, bytes] of Object.entries(output)) {
+    await GitClient.writeFile(owner, repo, "pages", path, bytes);
+  }
+  await GitClient.commitAndPush(owner, repo, "pages", "Publication du site");
 
   return { pageCount: Object.keys(output).length };
 }

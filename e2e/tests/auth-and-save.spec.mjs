@@ -80,4 +80,23 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   expect(html).toContain(text);
   expect(html).toContain('class="main-navigation"');
   expect(html).toContain(">Accueil<");
+
+  // Preuve que "Publier" est bien passé par un vrai commit+push git (isomorphic-git, voir
+  // editor-src/git-client.js) et pas juste par un appel API "contents" isolé : les deux
+  // branches ont chacune un nouveau commit, avec le message attendu.
+  const mainCommitsRes = await page.request.get(
+    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${seed.repoName}/commits?sha=main&limit=1`,
+    { headers: { Authorization: `token ${seed.token}` } }
+  );
+  expect(mainCommitsRes.ok()).toBeTruthy();
+  const [mainCommit] = await mainCommitsRes.json();
+  expect(mainCommit.commit.message).toContain(`Mise à jour de ${testPath}`);
+
+  const pagesCommitsRes = await page.request.get(
+    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${seed.repoName}/commits?sha=pages&limit=1`,
+    { headers: { Authorization: `token ${seed.token}` } }
+  );
+  expect(pagesCommitsRes.ok()).toBeTruthy();
+  const [pagesCommit] = await pagesCommitsRes.json();
+  expect(pagesCommit.commit.message).toContain("Publication du site");
 });
