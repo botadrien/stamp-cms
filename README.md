@@ -94,6 +94,16 @@ compilation demande un toolchain Rust + wasi-sdk trop lourd pour `npm run build`
 [`@bjorn3/browser_wasi_shim`](https://github.com/bjorn3/browser_wasi_shim), avec un
 système de fichiers entièrement en mémoire (voir `editor-src/zola-builder.js`).
 
+Chaque site est buildé avec le même thème Zola vendoré, **volks-typo**
+(`themes/volks-typo/`, récupéré via `scripts/fetch-theme-volks-typo.sh` — voir
+`site-builder.js` pour le point d'accroche prévu pour un choix de thème plus tard).
+Le contenu `content/*.md` est réparti en deux types selon son chemin : les pages
+standalone (`content/`) et les articles de blog (`content/blog/`, triés par date,
+flux RSS/Atom générés). L'écran "pages du site" liste les deux séparément, avec un
+formulaire "Ajouter" propre à chacun ; un écran "Réglages du site" permet d'éditer le
+titre du blog (seul réglage éditable pour l'instant, stocké dans le front matter de
+`content/_index.md`).
+
 1. Crée une OAuth App sur Codeberg (**Settings → Applications**), en **décochant
    "Confidential Client"** (client public, sans secret, requis pour PKCE), avec un
    Redirect URI qui correspond exactement à l'URL de déploiement (ex.
