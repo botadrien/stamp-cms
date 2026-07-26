@@ -301,4 +301,9 @@ class GitHubApi {
   repoUrl(owner, repo) {
     return `https://github.com/${owner}/${repo}`;
   }
+
+  // Supprime le dépôt entier — irréversible, nécessite le scope OAuth "delete_repo".
+  deleteRepo(owner, repo) {
+    return this._request(`/repos/${owner}/${repo}`, { method: "DELETE" });
+  }
 }

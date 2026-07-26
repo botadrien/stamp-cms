@@ -111,9 +111,10 @@ function renderLogin(extraMessage = "") {
       <h2>Se connecter avec GitHub</h2>
       <p style="color:var(--muted); font-size:14px; line-height:1.6;">
         GitHub n'autorise pas ce type de connexion en un clic depuis le navigateur seul
-        (voir README) — colle plutôt un jeton d'accès personnel (scope <code>repo</code>).
+        (voir README) — colle plutôt un jeton d'accès personnel (scopes <code>repo</code> et
+        <code>delete_repo</code>, ce dernier nécessaire pour supprimer un site depuis les réglages).
       </p>
-      <a href="https://github.com/settings/tokens/new?scopes=repo&description=Stamperia" target="_blank" rel="noopener">
+      <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo&description=Stamperia" target="_blank" rel="noopener">
         ${ICONS.external} Créer un jeton sur GitHub
       </a>
       <label for="githubTokenInput">Jeton d'accès personnel</label>
@@ -547,6 +548,19 @@ async function renderSiteSettings(owner, name) {
         ${ICONS.external} Voir le dépôt
       </a>
     </div>
+    <div class="card danger-zone">
+      <h2>Zone dangereuse</h2>
+      <p style="color:var(--muted); font-size:14px; line-height:1.6;">
+        Supprime définitivement le dépôt <strong>${owner}/${name}</strong> sur ${currentProvider.label}
+        (contenu, historique, site publié). Aucune corbeille, aucun retour en arrière possible.
+      </p>
+      <label for="deleteSiteConfirm">Tape <code>${name}</code> pour confirmer</label>
+      <input id="deleteSiteConfirm" autocomplete="off" oninput="onDeleteSiteConfirmInput()" />
+      <button id="deleteSiteBtn" class="danger" disabled onclick="deleteSite()">
+        Supprimer ce site
+      </button>
+      <div id="deleteSiteStatus"></div>
+    </div>
   `;
 
   try {
@@ -611,6 +625,28 @@ async function saveBlogTitle() {
       : renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
   } catch (err) {
     statusEl.innerHTML = renderStatus(err.message, "error");
+  }
+}
+
+// N'active "Supprimer ce site" que si le nom tapé correspond exactement au nom du dépôt —
+// filet de sécurité minimal pour une action irréversible (pas de corbeille côté fournisseur).
+function onDeleteSiteConfirmInput() {
+  const typed = document.getElementById("deleteSiteConfirm").value;
+  document.getElementById("deleteSiteBtn").disabled = typed !== currentRepo.name;
+}
+
+async function deleteSite() {
+  const { owner, name } = currentRepo;
+  const statusEl = document.getElementById("deleteSiteStatus");
+  const btn = document.getElementById("deleteSiteBtn");
+  btn.disabled = true;
+  statusEl.innerHTML = renderStatus("Suppression…", "info");
+  try {
+    await api.deleteRepo(owner, name);
+    window.location.hash = "#/";
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
+    btn.disabled = false;
   }
 }
 

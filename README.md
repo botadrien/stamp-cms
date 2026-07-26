@@ -24,6 +24,7 @@ Gratuit à 100% et toujours :
 - **Aperçu en direct** : pendant l'édition, un volet à côté de l'éditeur montre le site réellement généré par Zola (nav, thème, mise en page) à partir du brouillon en cours — rien n'est publié tant qu'on n'a pas cliqué sur "Publier".
 - **Publication en un clic** : chaque "Publier" compile le site et le publie sur la branche `pages` du dépôt.
 - **Contenu structuré** : pages et articles de blog gérés séparément (triés par date pour le blog), écran "Réglages du site" pour le titre du blog.
+- **Suppression d'un site** : depuis "Réglages du site", zone dangereuse qui supprime le dépôt entier chez le fournisseur (irréversible, il faut retaper le nom du dépôt pour confirmer).
 - **Thème** : un thème vendoré, volks-typo, copié dans le dépôt de chaque site à sa création (choix de thème prévu plus tard, voir "Roadmap") — voir "Lecture du dépôt : archive complète + cache local" et "Thème copié dans chaque site" plus bas pour l'architecture.
 - **Templates** : onglet dédié pour éditer le code (HTML/Tera) des gabarits du thème, avec preview live comme pour le contenu — voir "Thème copié dans chaque site" plus bas.
 
@@ -52,8 +53,9 @@ Gratuit à 100% et toujours :
 5. Ouvrir `http://localhost:8080/`
 
 Pour se connecter avec GitHub à la place, rien à configurer : générer un jeton d'accès
-personnel classique avec le scope `repo` (le POC propose un lien direct vers l'écran de
-création du jeton, scope pré-rempli) et le coller sur l'écran de connexion.
+personnel classique avec les scopes `repo` et `delete_repo` (`delete_repo` requis pour
+supprimer un site depuis les réglages — le POC propose un lien direct vers l'écran de
+création du jeton, scopes pré-remplis) et le coller sur l'écran de connexion.
 
 Pour se connecter avec GitLab (gitlab.com uniquement) : créer une application sur
 [gitlab.com/-/user_settings/applications](https://gitlab.com/-/user_settings/applications)

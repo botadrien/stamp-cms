@@ -172,6 +172,10 @@
     color: var(--text);
   }
   button.secondary:hover { border-color: var(--accent); }
+  button.danger { background: var(--status-error-fg); }
+  button.danger:hover { background: #8f1c17; }
+  button.danger:disabled { opacity: 0.5; cursor: not-allowed; }
+  .card.danger-zone { border-color: var(--status-error-fg); }
   .card {
     background: var(--panel);
     border: 1px solid var(--border);

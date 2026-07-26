@@ -349,6 +349,12 @@ class GitLabApi {
   repoUrl(owner, repo) {
     return `https://gitlab.com/${owner}/${repo}`;
   }
+
+  // Supprime le projet entier — irréversible (GitLab passe par une mise en corbeille
+  // temporisée côté serveur selon le plan, mais rien de piloté depuis cette app).
+  deleteRepo(owner, repo) {
+    return this._request(`/projects/${this.projectId(owner, repo)}`, { method: "DELETE" });
+  }
 }
 
 // GitLab attend le contenu en base64 quand `encoding: "base64"` est précisé — même

@@ -228,4 +228,9 @@ class ForgejoApi {
   repoUrl(owner, repo) {
     return `${CONFIG.instanceUrl}/${owner}/${repo}`;
   }
+
+  // Supprime le dépôt entier — irréversible côté Codeberg, pas de corbeille.
+  deleteRepo(owner, repo) {
+    return this._request(`/repos/${owner}/${repo}`, { method: "DELETE" });
+  }
 }
