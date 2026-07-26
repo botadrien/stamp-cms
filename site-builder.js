@@ -158,39 +158,32 @@ function encodeUtf8Base64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
-// Parcourt récursivement content/ sur main et appelle visit(path) pour chaque fichier
-// .md trouvé — partagé entre fetchContentFiles() et listContentPages().
+// Récupère l'arbre complet de content/ sur main en un seul appel (voir api.listTree) et
+// appelle visit(path, sha) pour chaque fichier .md trouvé, en parallèle — partagé entre
+// fetchContentFiles() et listContentPages(). Remplace un ancien parcours dossier par
+// dossier (un appel API par dossier + un par fichier, séquentiel).
 async function walkContentFiles(owner, repo, visit) {
-  async function walk(dirPath) {
-    let entries;
-    try {
-      entries = await api.listContents(owner, repo, dirPath, "main");
-    } catch (err) {
-      if (err.status === 404) return; // pas encore de contenu à ce chemin
-      throw err;
-    }
-    for (const entry of entries) {
-      if (entry.type === "dir") {
-        await walk(entry.path);
-      } else if (entry.path.endsWith(".md")) {
-        await visit(entry.path);
-      }
-    }
+  const tree = await api.listTree(owner, repo, "main");
+  if (tree.truncated) {
+    throw new Error("Le dépôt est trop volumineux pour être parcouru en un seul appel.");
   }
-  await walk("content");
+  const entries = tree.tree.filter(
+    (entry) => entry.type === "blob" && entry.path.startsWith("content/") && entry.path.endsWith(".md")
+  );
+  await Promise.all(entries.map((entry) => visit(entry.path, entry.sha)));
 }
 
-// Parcourt récursivement content/ sur main et retourne { "content/x.md": "...", ... }.
+// Récupère tout le contenu de content/ sur main et retourne { "content/x.md": "...", ... }.
 // Utilisé pour le *build* — inclut les _index.md (sections), contrairement à
 // listContentPages() qui les exclut de la liste "pages" éditable.
 async function fetchContentFiles(owner, repo) {
   const files = {};
-  await walkContentFiles(owner, repo, async (path) => {
-    const file = await api.getFile(owner, repo, path, "main");
+  await walkContentFiles(owner, repo, async (path, sha) => {
+    const blob = await api.getBlob(owner, repo, sha);
     // Garantit un front matter même sur des pages créées avant que ça soit
     // automatique (ou modifiées hors du POC) — Zola refuse de builder le site
     // entier si UN SEUL fichier content/*.md en est dépourvu.
-    files[path] = ensureFrontMatter(decodeBase64Utf8(file.content), path);
+    files[path] = ensureFrontMatter(decodeBase64Utf8(blob.content), path);
   });
   return files;
 }
@@ -207,11 +200,11 @@ function extractTitle(markdown, path) {
 // éditables via l'éditeur riche).
 async function listContentPages(owner, repo) {
   const pages = [];
-  await walkContentFiles(owner, repo, async (path) => {
+  await walkContentFiles(owner, repo, async (path, sha) => {
     if (path.endsWith("_index.md")) return;
-    const file = await api.getFile(owner, repo, path, "main");
+    const blob = await api.getBlob(owner, repo, sha);
     const type = path.startsWith("content/blog/") ? "post" : "page";
-    pages.push({ path, title: extractTitle(decodeBase64Utf8(file.content), path), type });
+    pages.push({ path, title: extractTitle(decodeBase64Utf8(blob.content), path), type });
   });
   pages.sort((a, b) => a.title.localeCompare(b.title));
   return pages;
@@ -271,20 +264,6 @@ async function setBlogTitle(owner, repo, title) {
   });
 }
 
-// Écrit un fichier (octets bruts — sortie du build Zola, texte et binaire mélangés) sur
-// la branche pages, en récupérant son sha existant si besoin (sinon Forgejo refuse
-// l'écrasement — même logique que pour la branche main).
-async function publishFile(owner, repo, path, bytes) {
-  let sha = null;
-  try {
-    const existing = await api.getFile(owner, repo, path, "pages", { silent404: true });
-    sha = existing.sha;
-  } catch (err) {
-    if (err.status !== 404) throw err;
-  }
-  await api.saveFileBytes(owner, repo, path, bytes, { sha, branch: "pages", message: "Publication du site" });
-}
-
 // Construit le site en mémoire (thème + config + contenu) sans rien publier — utilisé
 // à la fois par rebuildAndPublishSite() et par buildPreviewSite() ci-dessous, qui ne
 // diffèrent qu'après cet appel (l'un publie sur pages, l'autre sert direct via le
@@ -332,7 +311,10 @@ async function buildPreviewSite(owner, repo, editingPath, draftMarkdown, cachedC
 }
 
 // Récupère tout le contenu Markdown actuel + le thème vendoré, buildit avec Zola (en
-// mémoire, dans le navigateur), et publie chaque fichier produit sur la branche pages.
+// mémoire, dans le navigateur), et publie tous les fichiers produits sur la branche
+// pages en un seul commit (voir api.publishFiles — un batch côté Forgejo, une séquence
+// blob/tree/commit/ref via l'API Git Data côté GitHub, plutôt qu'un aller-retour
+// get-sha+PUT séquentiel par fichier).
 async function rebuildAndPublishSite(owner, repo) {
   const contentFiles = await fetchContentFiles(owner, repo);
 
@@ -344,9 +326,7 @@ async function rebuildAndPublishSite(owner, repo) {
     throw err;
   }
 
-  for (const [path, bytes] of Object.entries(output)) {
-    await publishFile(owner, repo, path, bytes);
-  }
+  await api.publishFiles(owner, repo, "pages", output);
 
   return { pageCount: Object.keys(output).length };
 }

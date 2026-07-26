@@ -112,13 +112,6 @@ class ForgejoApi {
     });
   }
 
-  // Liste le contenu d'un dossier dans un dépôt (racine par défaut). 404 si le dossier
-  // n'existe pas encore (site tout juste créé, pas encore de page à part l'accueil).
-  listContents(owner, repo, path = "", ref) {
-    const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
-    return this._request(`/repos/${owner}/${repo}/contents/${path}${query}`);
-  }
-
   // Récupère un fichier (contenu encodé en base64 par l'API). `silent404` : ne pas logger
   // en erreur console un 404 ici (utilisé pour de simples vérifications d'existence).
   getFile(owner, repo, path, ref, { silent404 = false } = {}) {
@@ -126,28 +119,48 @@ class ForgejoApi {
     return this._request(`/repos/${owner}/${repo}/contents/${path}${query}`, { silent404 });
   }
 
+  // Arbre complet d'une branche en un seul appel (chemin, type, sha, taille de chaque
+  // entrée) — remplace le parcours dossier par dossier de walkContentFiles(). `truncated`
+  // dans la réponse signale un dépôt trop gros pour tenir dans une seule page ; à vérifier
+  // par l'appelant.
+  listTree(owner, repo, ref) {
+    return this._request(`/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
+  }
+
+  // Contenu d'un blob par son sha (même forme `{content: base64}` que getFile, mais sans
+  // passer par un chemin — utile une fois le sha connu via listTree()).
+  getBlob(owner, repo, sha) {
+    return this._request(`/repos/${owner}/${repo}/git/blobs/${sha}`);
+  }
+
+  // Écrit plusieurs fichiers en un seul commit — l'API Git Data de Forgejo est en
+  // lecture seule (vérifié : POST /git/blobs et PATCH /git/refs renvoient 405), mais
+  // l'API "contents" expose un endpoint batch dédié ("Modify multiple files",
+  // POST /repos/{owner}/{repo}/contents) qui fait ce que publishFile() faisait fichier
+  // par fichier, en un seul appel. Le sha des fichiers déjà présents sur la branche
+  // (via listTree) distingue create/update, requis par cet endpoint.
+  async publishFiles(owner, repo, branch, files) {
+    const tree = await this.listTree(owner, repo, branch);
+    const existingShaByPath = new Map(
+      tree.tree.filter((entry) => entry.type === "blob").map((entry) => [entry.path, entry.sha])
+    );
+
+    const fileOps = Object.entries(files).map(([path, bytes]) => {
+      const sha = existingShaByPath.get(path);
+      const op = { operation: sha ? "update" : "create", path, content: bytesToBase64(bytes) };
+      if (sha) op.sha = sha;
+      return op;
+    });
+    return this._request(`/repos/${owner}/${repo}/contents`, {
+      method: "POST",
+      body: JSON.stringify({ files: fileOps, branch, message: "Publication du site" }),
+    });
+  }
+
   // Crée ou met à jour un fichier. `sha` requis uniquement si le fichier existe déjà.
   async saveFile(owner, repo, path, content, { sha, message, branch = "main" } = {}) {
     const body = {
       content: btoa(unescape(encodeURIComponent(content))), // encode UTF-8 -> base64
-      message: message || (sha ? `Mise à jour de ${path}` : `Création de ${path}`),
-      branch,
-    };
-    if (sha) body.sha = sha;
-
-    return this._request(`/repos/${owner}/${repo}/contents/${path}`, {
-      method: sha ? "PUT" : "POST",
-      body: JSON.stringify(body),
-    });
-  }
-
-  // Comme saveFile(), mais pour des octets bruts (Uint8Array) plutôt qu'une chaîne — sortie
-  // du build Zola, qui mélange HTML/CSS générés et assets binaires (polices, icônes)
-  // recopiés tels quels. L'aller-retour encodeURIComponent/unescape de saveFile() suppose
-  // une chaîne UTF-8 et corromprait ces derniers.
-  async saveFileBytes(owner, repo, path, bytes, { sha, message, branch = "main" } = {}) {
-    const body = {
-      content: bytesToBase64(bytes),
       message: message || (sha ? `Mise à jour de ${path}` : `Création de ${path}`),
       branch,
     };
