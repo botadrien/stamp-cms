@@ -21,6 +21,13 @@ page ou revient plus tard dans le même onglet, elle reste connectée tant que s
 n'a pas expiré. Si sa session expire, elle voit un message clair et peut se reconnecter
 en un clic, sans perdre son travail en cours si possible.
 
+Une personne qui a un compte GitHub à la place peut aussi se connecter, mais pas en un
+clic : GitHub exige un secret d'application pour l'échange OAuth, ce qu'on ne peut pas
+stocker de façon sûre dans une appli 100% navigateur (voir README, section technique).
+Elle colle donc un jeton d'accès personnel généré sur GitHub — la seule exception
+acceptée au principe "jamais le mot token à l'écran" ci-dessus, faute de mieux tant que ce
+verrou côté GitHub n'est pas levé.
+
 ## Choisir son site
 
 Une fois connectée, elle voit la liste de ses sites existants (ceux qu'elle possède ou
@@ -59,7 +66,7 @@ site vide — chaque cas a un message compréhensible et une action claire pour 
 
 ## Hors scope pour cette itération
 
-- Support multi-fournisseur Git (GitLab, GitHub...).
+- Support d'autres fournisseurs Git au-delà de Codeberg et GitHub (GitLab...).
 - Gestion avancée des médias (upload, bibliothèque d'images).
 - Système de plugins/thèmes.
 - Prévisualisation avant publication.

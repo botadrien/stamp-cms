@@ -5,13 +5,15 @@
 // brut affiché à l'utilisateur·rice (voir docs/objective.md, section "Gestion des
 // erreurs"). Les cas qui ont besoin de plus de contexte (ex. conflit d'édition, nom de
 // site déjà pris) sont affinés au niveau des appelants via `err.status`.
-function friendlyApiError(status) {
+// `providerLabel` : nom du fournisseur affiché dans le message 5xx (ex. "Codeberg",
+// "GitHub") — chaque client API passe le sien, voir ForgejoApi/GitHubApi.
+function friendlyApiError(status, providerLabel) {
   if (status === 401) return "Ta session a expiré, reconnecte-toi.";
   if (status === 403) return "Tu n'as pas les droits nécessaires pour cette action.";
   if (status === 404) return "Introuvable — ça a peut-être été supprimé ou déplacé.";
   if (status === 409) return "Ce contenu a changé entre-temps ailleurs.";
   if (status === 422) return "Cette action n'est pas possible telle quelle.";
-  if (status >= 500) return "Codeberg rencontre un problème de son côté, réessaie dans un instant.";
+  if (status >= 500) return `${providerLabel} rencontre un problème de son côté, réessaie dans un instant.`;
   return "Une erreur est survenue, réessaie.";
 }
 
@@ -27,6 +29,9 @@ function bytesToBase64(bytes) {
 }
 
 class ForgejoApi {
+  static providerId = "codeberg";
+  static providerLabel = "Codeberg";
+
   constructor(token) {
     this.token = token;
     this.base = `${CONFIG.instanceUrl}/api/v1`;
@@ -45,7 +50,7 @@ class ForgejoApi {
       });
     } catch (networkErr) {
       console.error(`Network error sur ${path}:`, networkErr);
-      throw new Error("Impossible de contacter Codeberg — vérifie ta connexion et réessaie.");
+      throw new Error(`Impossible de contacter ${ForgejoApi.providerLabel} — vérifie ta connexion et réessaie.`);
     }
 
     if (!response.ok) {
@@ -55,7 +60,7 @@ class ForgejoApi {
       if (!(response.status === 404 && options.silent404)) {
         console.error(`API error (${response.status}) sur ${path}:`, await response.text());
       }
-      const err = new Error(friendlyApiError(response.status));
+      const err = new Error(friendlyApiError(response.status, ForgejoApi.providerLabel));
       err.status = response.status;
       throw err;
     }
@@ -91,8 +96,10 @@ class ForgejoApi {
   // Webhook nécessaire pour que Codeberg Pages serve réellement la branche "pages" —
   // sans ça, la branche existe mais rien n'est publié (voir docs.codeberg.org/codeberg-pages/,
   // section Webhooks : le type de webhook doit être "forgejo", filtré sur la branche
-  // "pages", avec l'URL Codeberg Pages elle-même comme cible).
-  createPagesWebhook(owner, repo) {
+  // "pages", avec l'URL Codeberg Pages elle-même comme cible). Nom générique
+  // (`enablePublishing`) car GitHubApi n'a pas besoin de webhook pour la même chose —
+  // voir github-api.js.
+  enablePublishing(owner, repo) {
     return this._request(`/repos/${owner}/${repo}/hooks`, {
       method: "POST",
       body: JSON.stringify({
@@ -158,5 +165,11 @@ class ForgejoApi {
   pagesUrl(owner, repo) {
     const domain = CONFIG.pagesDomain || "codeberg.page";
     return repo === "pages" ? `https://${owner}.${domain}/` : `https://${owner}.${domain}/${repo}/`;
+  }
+
+  // URL du dépôt lui-même sur Codeberg (page web, pas API) — utilisé par l'écran
+  // Réglages du site pour afficher un lien "Voir le dépôt".
+  repoUrl(owner, repo) {
+    return `${CONFIG.instanceUrl}/${owner}/${repo}`;
   }
 }

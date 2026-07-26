@@ -5,6 +5,7 @@ const sidebarEl = document.getElementById("sidebar");
 let api = null;
 let currentUser = null;
 let currentRepo = null; // { owner, name }
+let currentProvider = null; // entrée de GIT_PROVIDERS (voir providers.js) du fournisseur connecté
 
 // L'attribut data-theme est déjà posé au plus tôt par le script inline dans <head> (avant
 // même que ce fichier ne charge, pour éviter un flash) — ici on ne fait qu'aligner l'icône
@@ -89,16 +90,47 @@ function renderLogin(extraMessage = "") {
   sidebarEl.innerHTML = "";
   appEl.innerHTML = `
     <div class="card">
-      <h2>Connecte ton compte Codeberg</h2>
-      <p style="color:var(--muted); font-size:14px; line-height:1.6;">
-        Ce POC se connecte directement à l'API Codeberg via OAuth2 + PKCE.
-        Aucun serveur intermédiaire : le jeton d'accès reste dans ton navigateur
-        (sessionStorage), et disparaît si tu fermes l'onglet.
-      </p>
+      <h2>Connecte ton compte</h2>
       ${extraMessage ? renderStatus(extraMessage, "error") : ""}
+      <p style="color:var(--muted); font-size:14px; line-height:1.6;">
+        Ce POC se connecte directement à l'API de ton fournisseur, sans aucun serveur
+        intermédiaire : le jeton d'accès reste dans ton navigateur (sessionStorage), et
+        disparaît si tu fermes l'onglet.
+      </p>
       <button onclick="startLogin()">Se connecter avec Codeberg</button>
     </div>
+    <div class="card">
+      <h2>Se connecter avec GitHub</h2>
+      <p style="color:var(--muted); font-size:14px; line-height:1.6;">
+        GitHub n'autorise pas ce type de connexion en un clic depuis le navigateur seul
+        (voir README) — colle plutôt un jeton d'accès personnel (scope <code>repo</code>).
+      </p>
+      <a href="https://github.com/settings/tokens/new?scopes=repo&description=Stamperia" target="_blank" rel="noopener">
+        ${ICONS.external} Créer un jeton sur GitHub
+      </a>
+      <label for="githubTokenInput">Jeton d'accès personnel</label>
+      <input id="githubTokenInput" type="password" placeholder="ghp_..." />
+      <button onclick="submitGitHubToken()">Se connecter avec GitHub</button>
+      <div id="githubTokenStatus"></div>
+    </div>
   `;
+}
+
+async function submitGitHubToken() {
+  const input = document.getElementById("githubTokenInput");
+  const statusEl = document.getElementById("githubTokenStatus");
+  const token = input.value.trim();
+  if (!token) {
+    statusEl.innerHTML = renderStatus("Colle ton jeton d'accès personnel GitHub.", "error");
+    return;
+  }
+  statusEl.innerHTML = renderStatus("Vérification…", "info");
+  try {
+    await loginWithToken("github", token);
+    window.location.reload();
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
+  }
 }
 
 function renderLoading(message) {
@@ -223,6 +255,7 @@ window.addEventListener("hashchange", renderRoute);
 async function renderDashboard() {
   leaveEditor();
   userbarEl.innerHTML = `
+    <span class="provider-badge" title="Connecté via ${currentProvider.label}">${currentProvider.icon()}</span>
     <span>${currentUser.login}</span>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   `;
@@ -287,7 +320,7 @@ async function createSite() {
     const repo = await api.createRepo(name);
     const owner = repo.owner.login;
     await api.createBranch(owner, repo.name, "pages", repo.default_branch);
-    await api.createPagesWebhook(owner, repo.name);
+    await api.enablePublishing(owner, repo.name);
 
     await api.saveFile(owner, repo.name, "content/_index.md", buildIndexStub(repo.name), {
       message: "Site initial",
@@ -413,6 +446,15 @@ async function renderSiteSettings(owner, name) {
         <div id="settingsStatus"></div>
       </div>
     </div>
+    <div class="card">
+      <h2>Dépôt</h2>
+      <p style="color:var(--muted); font-size:14px;">
+        Ce site est stocké sur ${currentProvider.label}.
+      </p>
+      <a href="${api.repoUrl(owner, name)}" target="_blank" rel="noopener">
+        ${ICONS.external} Voir le dépôt
+      </a>
+    </div>
   `;
 
   try {
@@ -438,7 +480,7 @@ async function saveBlogTitle() {
     await setBlogTitle(currentRepo.owner, currentRepo.name, title);
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
     await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
-    statusEl.innerHTML = renderStatus("Publié avec succès sur Codeberg ✓", "success");
+    statusEl.innerHTML = renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
   } catch (err) {
     statusEl.innerHTML = renderStatus(err.message, "error");
   }
@@ -627,7 +669,7 @@ async function saveFile() {
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
     await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
 
-    statusEl.innerHTML = renderStatus("Publié avec succès sur Codeberg ✓", "success");
+    statusEl.innerHTML = renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
   } catch (err) {
     // Forgejo/Codeberg répondent 422 (pas 409) quand le sha envoyé ne correspond plus au
     // fichier côté serveur — ça n'arrive que si on avait un sha (mise à jour, pas création).
@@ -677,7 +719,8 @@ async function init() {
     return;
   }
 
-  api = new ForgejoApi(token);
+  currentProvider = GIT_PROVIDERS[getStoredProviderId()];
+  api = new currentProvider.ApiClass(token);
   try {
     currentUser = await api.getCurrentUser();
   } catch (err) {

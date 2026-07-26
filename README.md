@@ -16,7 +16,8 @@ Gratuit à 100% et toujours :
 
 ## Fonctionnalités
 
-- **Connexion sans serveur** : OAuth2 + PKCE directement vers Codeberg (pas besoin de bridge). Droits d'accès = rôles natifs de Codeberg.
+- **Connexion sans serveur** : OAuth2 + PKCE directement vers Codeberg (pas besoin de bridge), ou jeton d'accès personnel collé à la main pour GitHub (voir "Forges git" ci-dessous pour pourquoi GitHub n'a pas droit au même flow OAuth). Droits d'accès = rôles natifs du fournisseur choisi.
+- **Multi-fournisseur** : Codeberg et GitHub aujourd'hui, via une couche d'abstraction commune (`api.js`/`github-api.js`/`providers.js`) pensée pour qu'ajouter un fournisseur de plus (GitLab...) n'exige pas de refonte.
 - **Édition riche** : éditeur visuel similaire à Notion ([BlockNote.js](https://www.blocknote.js.org/) sur [ProseMirror](https://prosemirror.net/))
   Contenu stocké en Markdown, source de vérité dans le dépôt Git, commit direct à chaque enregistrement.
 - **Génération du site** avec [Zola](https://www.getzola.org/), compilé en WebAssembly et exécuté **dans le navigateur** à chaque publication.
@@ -28,8 +29,8 @@ Gratuit à 100% et toujours :
 ## Feuille de route
 
 1. **Gestion des médias** (images, etc.) dans le dépôt Git.
-2. **Support multi-fournisseur Git** (GitLab, GitHub...) via une couche d'abstraction commune.
-3. **Système de plugins/thèmes**, avec une API d'extension stable pensée dès maintenant pour éviter un refactor douloureux plus tard, en vue d'une marketplace de plugins et de thèmes.
+2. **Système de plugins/thèmes**, avec une API d'extension stable pensée dès maintenant pour éviter un refactor douloureux plus tard, en vue d'une marketplace de plugins et de thèmes.
+3. **GitLab** (ou d'autres fournisseurs) derrière la même couche d'abstraction — Codeberg et GitHub y sont déjà branchés, voir "Forges git" plus bas.
 
 ## État de l'art / Inspirations
 
@@ -47,6 +48,10 @@ Gratuit à 100% et toujours :
 3. `npm install`
 4. `make run`
 5. Ouvrir `http://localhost:8080/`
+
+Pour se connecter avec GitHub à la place, rien à configurer : générer un jeton d'accès
+personnel classique avec le scope `repo` (le POC propose un lien direct vers l'écran de
+création du jeton, scope pré-rempli) et le coller sur l'écran de connexion.
 
 ### Lancer les tests
 
@@ -105,6 +110,11 @@ C’est l'architecture "normale" pour un générateur de site statiques : compil
 Codeberg répond aux requêtes cross-origin (CORS) sur `/login/oauth/access_token` et sur `/api/v1/*` avec les en-têtes `Access-Control-Allow-Origin`.
 Mais Forgejo vanilla ne le fait pas nativement sur ces routes.
 `e2e/Caddyfile` reproduit ce comportement via un reverse proxy devant Forgejo, pour que l'environnement de test colle au vrai comportement de production.
+
+**Pourquoi GitHub n'a pas le même flow OAuth2 + PKCE que Codeberg** : `api.github.com` répond bien en CORS pour tous les appels REST une fois authentifié, mais `github.com/login/oauth/access_token` (l'échange code → token) ne renvoie aucun en-tête CORS, ce qui bloque l'appel depuis un navigateur.
+Pire, même avec le support PKCE ajouté par GitHub en 2025, GitHub exige toujours un `client_secret` pour cet échange — un secret qu'on ne peut pas committer dans une appli 100% front sans le rendre public à toustes.
+Plutôt qu'un serveur/proxy dédié rien que pour cet échange (qui aurait été le premier serveur requis par ce projet, contraire à son principe fondateur), GitHub se connecte via un jeton d'accès personnel collé à la main — voir `github-api.js`, `providers.js` et `auth.js:loginWithToken`.
+La couche d'abstraction (`ForgejoApi` dans `api.js`, `GitHubApi` dans `github-api.js`, choix du bon client via `providers.js`) absorbe aussi les différences d'API entre les deux forges : création de branche (un seul appel côté Forgejo, lecture de ref + création de ref côté GitHub), activation de la publication (webhook côté Codeberg Pages, appel dédié à l'API Pages côté GitHub), et `PUT` systématique de l'API contents de GitHub là où Forgejo distingue `POST`/`PUT` selon création ou mise à jour.
 
 ### Génération du site dans le navigateur
 

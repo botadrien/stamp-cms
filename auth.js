@@ -5,6 +5,10 @@ const TOKEN_ENDPOINT = () => `${CONFIG.instanceUrl}/login/oauth/access_token`;
 
 const TOKEN_STORAGE_KEY = "cms_poc_access_token";
 const VERIFIER_STORAGE_KEY = "cms_poc_code_verifier";
+// Fournisseur associé au token stocké ("codeberg" ou "github") — absent sur une session
+// existante d'avant le support multi-fournisseur, d'où le défaut "codeberg" dans
+// getStoredProviderId() ci-dessous (et dans les tests e2e, qui restent Codeberg/Forgejo).
+const PROVIDER_STORAGE_KEY = "cms_poc_provider";
 
 async function startLogin() {
   const { codeVerifier, codeChallenge } = await generatePkcePair();
@@ -60,6 +64,7 @@ async function handleRedirectCallback() {
 
   const data = await response.json();
   sessionStorage.setItem(TOKEN_STORAGE_KEY, data.access_token);
+  sessionStorage.setItem(PROVIDER_STORAGE_KEY, "codeberg");
   sessionStorage.removeItem(VERIFIER_STORAGE_KEY);
 
   // Nettoie l'URL (retire ?code=... de la barre d'adresse)
@@ -68,12 +73,28 @@ async function handleRedirectCallback() {
   return data.access_token;
 }
 
+// Connexion par jeton d'accès personnel collé à la main (GitHub) — pas de redirection,
+// pas de client_secret : on valide juste le jeton en interrogeant l'utilisateur·rice
+// courant·e avant de le stocker, pour ne jamais persister un jeton invalide silencieusement.
+async function loginWithToken(providerId, token) {
+  const provider = GIT_PROVIDERS[providerId];
+  const api = new provider.ApiClass(token);
+  await api.getCurrentUser(); // lève une erreur explicite si le jeton est invalide/insuffisant
+  sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+  sessionStorage.setItem(PROVIDER_STORAGE_KEY, providerId);
+}
+
 function getStoredToken() {
   return sessionStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
+function getStoredProviderId() {
+  return sessionStorage.getItem(PROVIDER_STORAGE_KEY) || "codeberg";
+}
+
 function logout() {
   sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  sessionStorage.removeItem(PROVIDER_STORAGE_KEY);
   window.location.hash = "";
   window.location.reload();
 }
