@@ -63,13 +63,18 @@ test("l'aperçu se génère sans publier et reflète le brouillon en cours", asy
   await editor.click();
   await page.keyboard.type(text);
 
-  // Le rebuild d'aperçu est débounced (~1.8s) puis prend ~11-15s (thème complet, voir
-  // AGENTS.md) — même budget que les tests de publication existants.
+  // Le rebuild d'aperçu est débounced (~1.8s) puis quasi instantané (thème vendoré en CSS
+  // précompilé, plus de Sass à recompiler à chaque build) — marge large quand même, ce
+  // budget est partagé avec le login + la création de page qui précèdent.
   const previewFrame = page.frameLocator("#previewFrame");
   await expect(previewFrame.locator("body")).toContainText(text, { timeout: 60_000 });
 
-  // Généré par Zola avec le vrai thème/nav — pas juste le texte brut injecté.
-  await expect(previewFrame.locator(".main-navigation")).toContainText("Accueil");
+  // Généré par Zola avec le vrai thème/nav — pas juste le texte brut injecté. Le volet
+  // d'aperçu (moitié de la largeur restante après la barre latérale) est plus étroit que
+  // le point de rupture responsive du thème : c'est la nav *mobile*, cachée hors-écran
+  // (tiroir) tant qu'on n'ouvre pas le hamburger, qui s'affiche ici — pas .main-navigation
+  // (desktop, display:none à cette largeur).
+  await expect(previewFrame.getByRole("navigation", { name: "Mobile navigation" })).toContainText("Accueil");
 
   // Rien n'a été publié : le fichier n'existe pas sur main, aucune page HTML sur pages.
   const mainRes = await page.request.get(
@@ -78,9 +83,11 @@ test("l'aperçu se génère sans publier et reflète le brouillon en cours", asy
   );
   expect(mainRes.status()).toBe(404);
 
-  // Navigation à l'intérieur de l'aperçu : cliquer "Accueil" doit resservir une autre
-  // page via sw.js, pas un 404 (vérifie le routage /preview/<owner>/<repo>/... du worker
-  // au-delà de la seule page éditée).
-  await previewFrame.locator(".main-navigation").getByRole("link", { name: "Accueil" }).click();
+  // Navigation à l'intérieur de l'aperçu : le tiroir mobile n'est cliquable qu'une fois
+  // ouvert (hamburger) — cliquer "Accueil" doit ensuite resservir une autre page via
+  // sw.js, pas un 404 (vérifie le routage /preview/<owner>/<repo>/... au-delà de la
+  // seule page éditée).
+  await previewFrame.getByRole("button", { name: "Toggle navigation menu" }).click();
+  await previewFrame.getByRole("navigation", { name: "Mobile navigation" }).getByRole("link", { name: "Accueil" }).click();
   await expect(previewFrame.locator("body")).not.toContainText("Aperçu introuvable");
 });

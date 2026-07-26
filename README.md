@@ -1,4 +1,4 @@
-# CMS Statique
+# Stamperia
 
 ## WordPress, sans le serveur.
 

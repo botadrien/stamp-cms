@@ -6,6 +6,28 @@ let api = null;
 let currentUser = null;
 let currentRepo = null; // { owner, name }
 
+// L'attribut data-theme est déjà posé au plus tôt par le script inline dans <head> (avant
+// même que ce fichier ne charge, pour éviter un flash) — ici on ne fait qu'aligner l'icône
+// du bouton dessus, et prévenir l'éditeur riche (île React séparée, voir editor.jsx) au cas
+// où il serait monté au moment du bascule.
+function applyThemeToggleIcon() {
+  const btn = document.getElementById("themeToggle");
+  if (!btn) return;
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  btn.innerHTML = isDark ? ICONS.sun : ICONS.moon;
+  btn.title = isDark ? "Passer en mode clair" : "Passer en mode sombre";
+}
+
+function toggleTheme() {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  localStorage.setItem("cms-theme", next);
+  document.documentElement.setAttribute("data-theme", next);
+  applyThemeToggleIcon();
+  window.dispatchEvent(new Event("cms-theme-change"));
+}
+
+applyThemeToggleIcon();
+
 // Aperçu en direct de l'éditeur — voir sw.js (service worker qui sert /preview/...) et
 // buildPreviewSite() dans site-builder.js. swReady résout une fois le worker actif,
 // avant quoi pointer un iframe vers /preview/... ferait une vraie requête réseau (404).
@@ -33,6 +55,17 @@ function registerServiceWorker() {
 async function getPreviewWorker() {
   const registration = await swReady;
   return registration ? registration.active : null;
+}
+
+// postMessage() revient avant que le worker ait traité le message — attendre l'accusé de
+// réception (voir sw.js) avant de naviguer l'iframe, sinon la requête /preview/... peut
+// arriver avant que le worker ait fini de mettre sa map à jour.
+function sendToPreviewWorker(worker, message) {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => resolve();
+    worker.postMessage(message, [channel.port2]);
+  });
 }
 
 function renderStatus(message, type = "info") {
@@ -455,17 +488,17 @@ async function renderEditor(path, fileSha, fileContent, contentFiles) {
   appEl.classList.add("editor-split");
   appEl.innerHTML = `
     <div class="card editor-pane">
-      <button class="secondary" onclick='window.location.hash = ${JSON.stringify(backHash)}'>&larr; Retour aux pages</button>
-      <h2 style="margin-top:16px;">${currentRepo.owner}/${currentRepo.name}</h2>
+      <div class="editor-toolbar">
+        <button class="secondary" onclick='window.location.hash = ${JSON.stringify(backHash)}'>&larr; Retour aux pages</button>
+        <button onclick="saveFile()">Publier</button>
+      </div>
+      <div id="editorStatus"></div>
+      <h2>${currentRepo.owner}/${currentRepo.name}</h2>
 
       <label>Contenu</label>
-      <div id="editorMount" style="border:1px solid var(--border); border-radius:8px; margin-bottom:16px; min-height:220px; color:#111;"></div>
-
-      <button onclick="saveFile()">Publier</button>
-      <div id="editorStatus"></div>
+      <div id="editorMount" style="margin-bottom:16px; min-height:220px;"></div>
     </div>
     <div class="card preview-pane">
-      <label>Aperçu</label>
       <div id="previewStatus">${contentFiles ? "" : renderStatus("Aperçu indisponible.", "error")}</div>
       <iframe id="previewFrame" title="Aperçu du site"></iframe>
     </div>
@@ -503,6 +536,13 @@ async function triggerPreviewBuild() {
     if (state) state.dirty = true;
     return;
   }
+  // Un build qui démarre annule tout timer de débounce en attente (ex. le rattrapage
+  // "dirty" lancé depuis finally ci-dessous, avant même que le timer programmé par
+  // onEditorContentChange() n'ait eu le temps de se déclencher) — sinon ce timer
+  // redéclenche un rebuild redondant (déjà à jour) juste après, qui recharge l'iframe
+  // une 3e fois pour rien (flicker observé en e2e : le clic sur un lien de nav pouvait
+  // tomber pile pendant ce rechargement de trop et échouer).
+  clearTimeout(state.debounceTimer);
   state.dirty = false;
   state.building = true;
 
