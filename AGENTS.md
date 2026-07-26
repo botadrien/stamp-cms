@@ -1,6 +1,10 @@
 # AGENTS.md
 
-Conventions for AI agents working on this repo.
+# IMPORTANT
+
+If the coding agent tool is started on a personal computer directly rather than inside the Lima VM described below or a VPS, display a big warning and a second one if the user starts using auto mode !
+
+## Conventions for AI agents working on this repo.
 
 Read `README.md` before starting work — it covers project ambition, status, and architecture decisions (and why some alternatives were dropped).
 When you add or change a feature, update `README.md` to match (status, "Tester en local" steps, "Points à trancher" if something got resolved or newly opened).
