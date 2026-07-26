@@ -241,11 +241,29 @@ function renderSidebar(route) {
         .join("")}
     </ul>
     <div class="sidebar-footer">
-      <a href="${api.pagesUrl(owner, repo)}" target="_blank" rel="noopener">
+      <a id="sidebarPublishedLink" href="${api.pagesUrl(owner, repo)}" target="_blank" rel="noopener">
         ${ICONS.external} Voir le site publié
       </a>
     </div>
   `;
+}
+
+// Une fois le domaine personnalisé connu (site.toml, voir getCustomDomain), pointe le lien
+// "Voir le site publié" dessus plutôt que vers l'URL par défaut du fournisseur — appelé en
+// fire-and-forget depuis renderRoute() pour ne pas retarder l'affichage de la sidebar sur
+// un aller-retour réseau. Vérifie que l'utilisateur·rice n'a pas déjà navigué ailleurs
+// avant que la réponse n'arrive (comparaison à currentRepo).
+async function refreshSidebarPublishedLink(owner, repo) {
+  let customDomain;
+  try {
+    customDomain = await getCustomDomain(owner, repo);
+  } catch {
+    return; // best-effort : le lien par défaut reste affiché en cas d'erreur
+  }
+  if (!customDomain) return;
+  if (!currentRepo || currentRepo.owner !== owner || currentRepo.name !== repo) return;
+  const link = document.getElementById("sidebarPublishedLink");
+  if (link) link.href = `https://${customDomain}/`;
 }
 
 // Traduit l'URL courante en écran affiché — appelé au chargement (pour permettre de
@@ -263,6 +281,7 @@ async function renderRoute() {
   }
   currentRepo = { owner: route.owner, name: route.repo };
   renderSidebar(route);
+  refreshSidebarPublishedLink(route.owner, route.repo);
   if (route.view === "pages") {
     await renderPages(route.owner, route.repo);
   } else if (route.view === "posts") {
@@ -536,6 +555,21 @@ async function renderSiteSettings(owner, name) {
       </div>
     </div>
     <div class="card">
+      <h2>Domaine personnalisé</h2>
+      <p style="color:var(--muted); font-size:14px;">
+        Sous-domaine uniquement pour l'instant (ex. <code>www.exemple.com</code>) — pas de domaine racine.
+      </p>
+      <label for="customDomain">Domaine</label>
+      <input id="customDomain" placeholder="www.exemple.com" />
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button onclick="saveCustomDomain()">Enregistrer</button>
+        <button class="secondary" onclick="checkDomainDns()">Vérifier le DNS</button>
+      </div>
+      <div id="customDomainStatus"></div>
+      <div id="dnsCheckStatus"></div>
+      <div id="dnsInstructions"></div>
+    </div>
+    <div class="card">
       <h2>Thème</h2>
       <div id="themeStatus">${renderStatus("Vérification…", "info")}</div>
     </div>
@@ -572,7 +606,190 @@ async function renderSiteSettings(owner, name) {
     document.getElementById("settingsLoadStatus").innerHTML = renderStatus(err.message, "error");
   }
 
+  try {
+    const domain = await getCustomDomain(owner, name);
+    document.getElementById("customDomain").value = domain || "";
+    await renderDnsInstructions(owner, name, domain);
+  } catch (err) {
+    document.getElementById("customDomainStatus").innerHTML = renderStatus(err.message, "error");
+  }
+
   await refreshThemeStatus(owner, name);
+}
+
+// Cible attendue de l'enregistrement CNAME selon le fournisseur connecté — même valeur
+// que celle utilisée pour enregistrer/router le domaine côté fournisseur (voir
+// pagesUrl()/registerCustomDomain() sur chaque client API), sans le protocole ni le slash
+// final (format DNS, pas URL).
+function expectedCnameTarget(providerId, owner) {
+  if (providerId === "codeberg") return CONFIG.pagesDomain || "codeberg.page";
+  if (providerId === "github") return `${owner}.github.io`;
+  if (providerId === "gitlab") return `${owner}.gitlab.io`;
+  return null;
+}
+
+// Instructions DNS propres au fournisseur connecté — texte pur, aucun appel réseau (voir
+// renderDnsInstructions() ci-dessous pour la partie GitLab qui a besoin d'interroger l'API
+// pour le code de vérification). Sous-domaine uniquement (voir README) : un seul
+// enregistrement CNAME dans tous les cas, jamais de A/AAAA/ALIAS pour un domaine apex.
+function dnsInstructionsHtml(providerId, owner, repo, domain) {
+  const target = expectedCnameTarget(providerId, owner);
+  const records = [`<li><code>CNAME</code> → <code>${target}</code></li>`];
+  if (providerId === "codeberg") {
+    records.push(
+      `<li><code>TXT</code> à <code>_git-pages-repository.${domain}</code> → <code>https://codeberg.org/${owner}/${repo}.git</code> (autorisation)</li>`
+    );
+  }
+  if (providerId === "gitlab") {
+    records.push(`<li id="gitlabVerificationRecord">Enregistrement <code>TXT</code> de vérification : <em>chargement…</em></li>`);
+  }
+  const codebergWarning =
+    providerId === "codeberg"
+      ? renderStatus(
+          "La publication du site sera interrompue tant que ce DNS n'est pas configuré — le webhook de publication cible désormais ce domaine.",
+          "error"
+        )
+      : "";
+  const gitlabButton =
+    providerId === "gitlab" ? `<button onclick="verifyGitlabDomain()">Vérifier le domaine sur GitLab</button>` : "";
+
+  return `
+    <p style="font-size:14px; margin-top:12px;">Configuration DNS chez ton registrar pour <strong>${domain}</strong> :</p>
+    <ul style="font-size:14px; line-height:1.8;">${records.join("")}</ul>
+    ${codebergWarning}
+    ${gitlabButton}
+  `;
+}
+
+// Affiche (ou masque, si `domain` est vide) le bloc d'instructions DNS, et complète le
+// code de vérification GitLab une fois connu (nécessite un appel réseau, contrairement au
+// reste des instructions).
+async function renderDnsInstructions(owner, repo, domain) {
+  const container = document.getElementById("dnsInstructions");
+  if (!domain) {
+    container.innerHTML = "";
+    return;
+  }
+  container.innerHTML = dnsInstructionsHtml(currentProvider.id, owner, repo, domain);
+
+  if (currentProvider.id === "gitlab") {
+    try {
+      const status = await api.getCustomDomainStatus(owner, repo, domain);
+      const recordEl = document.getElementById("gitlabVerificationRecord");
+      if (recordEl) {
+        recordEl.innerHTML = status
+          ? `Enregistrement <code>TXT</code> → <code>gitlab-pages-verification-code=${status.verificationCode}</code> — ${
+              status.verified ? "vérifié ✓" : "pas encore vérifié"
+            }`
+          : "Enregistrement TXT généré après le premier enregistrement du domaine";
+      }
+    } catch (err) {
+      console.error("Échec de la récupération du statut de vérification GitLab:", err.message);
+    }
+  }
+}
+
+// Vérifie en direct (DNS-over-HTTPS, voir dns-check.js) si le domaine tapé pointe déjà
+// vers la bonne cible pour le fournisseur connecté — utile avant même d'enregistrer, pour
+// savoir si le DNS a fini de propager.
+async function checkDomainDns() {
+  const domain = document.getElementById("customDomain").value.trim();
+  const statusEl = document.getElementById("dnsCheckStatus");
+  if (!domain) {
+    statusEl.innerHTML = renderStatus("Renseigne un domaine d'abord.", "error");
+    return;
+  }
+  statusEl.innerHTML = renderStatus("Vérification du DNS…", "info");
+  try {
+    const ok = await checkCnameTarget(domain, expectedCnameTarget(currentProvider.id, currentRepo.owner));
+    statusEl.innerHTML = ok
+      ? renderStatus("Le DNS pointe bien vers la bonne cible ✓", "success")
+      : renderStatus("Le DNS ne pointe pas (encore) vers la bonne cible — propagation en cours ?", "error");
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
+  }
+}
+
+async function verifyGitlabDomain() {
+  const domain = document.getElementById("customDomain").value.trim();
+  const statusEl = document.getElementById("dnsCheckStatus");
+  if (!domain) return;
+  statusEl.innerHTML = renderStatus("Vérification auprès de GitLab…", "info");
+  try {
+    await api.verifyCustomDomain(currentRepo.owner, currentRepo.name, domain);
+    statusEl.innerHTML = renderStatus("Vérifié ✓", "success");
+    await renderDnsInstructions(currentRepo.owner, currentRepo.name, domain);
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
+  }
+}
+
+async function saveCustomDomain() {
+  const { owner, name } = currentRepo;
+  const domainInput = document.getElementById("customDomain").value.trim().toLowerCase();
+  const statusEl = document.getElementById("customDomainStatus");
+
+  // Heuristique simple (pas de liste de suffixes publics) : un domaine avec un seul point
+  // ressemble à un domaine racine, pas supporté pour l'instant (voir README).
+  if (domainInput && domainInput.split(".").length < 3) {
+    statusEl.innerHTML = renderStatus(
+      "Seuls les sous-domaines sont supportés pour l'instant (ex. www.exemple.com), pas les domaines racine.",
+      "error"
+    );
+    return;
+  }
+  const domain = domainInput || null;
+
+  try {
+    const previousDomain = await getCustomDomain(owner, name);
+
+    // Pré-vol DNS uniquement pour Codeberg : repointer le webhook vers un domaine dont le
+    // DNS n'a pas encore propagé casse la publication jusqu'à propagation (voir
+    // ForgejoApi.registerCustomDomain) — averti explicitement avant de continuer.
+    if (domain && currentProvider.id === "codeberg") {
+      statusEl.innerHTML = renderStatus("Vérification du DNS…", "info");
+      // Une vérification DNS ratée (service DNS-over-HTTPS injoignable, etc.) ne doit pas
+      // bloquer l'enregistrement — seul un DNS positivement incorrect doit avertir.
+      const ok = await checkCnameTarget(domain, expectedCnameTarget("codeberg", owner)).catch(() => false);
+      if (!ok) {
+        const proceed = confirm(
+          `Le DNS de ${domain} ne semble pas encore pointer vers codeberg.page — la publication du site sera interrompue tant que ce ne sera pas le cas. Continuer quand même ?`
+        );
+        if (!proceed) {
+          statusEl.innerHTML = renderStatus("Annulé — configure le DNS puis réessaie.", "info");
+          return;
+        }
+      }
+    }
+
+    statusEl.innerHTML = renderStatus("Enregistrement…", "info");
+    await setCustomDomain(owner, name, domain);
+
+    if (currentProvider.id === "gitlab") {
+      if (previousDomain && previousDomain !== domain) {
+        await api.unregisterCustomDomain(owner, name, previousDomain).catch((err) => {
+          console.error("Échec de la suppression de l'ancien domaine GitLab:", err.message);
+        });
+      }
+      if (domain) {
+        const existingStatus = await api.getCustomDomainStatus(owner, name, domain);
+        if (!existingStatus) await api.registerCustomDomain(owner, name, domain);
+      }
+    } else {
+      await api.registerCustomDomain(owner, name, domain);
+    }
+
+    statusEl.innerHTML = renderStatus("Génération du site…", "info");
+    const { warning } = await rebuildAndPublishSite(owner, name);
+    statusEl.innerHTML = warning
+      ? renderStatus(warning, "error")
+      : renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
+    return;
+  }
+
+  await renderDnsInstructions(owner, name, domain);
 }
 
 // Sites créés avant que le thème complet ne soit copié dans chaque dépôt (voir

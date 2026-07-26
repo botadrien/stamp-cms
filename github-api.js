@@ -106,6 +106,17 @@ class GitHubApi {
     });
   }
 
+  // Domaine personnalisé : l'API Pages accepte directement un champ `cname` (string ou
+  // `null` pour le retirer) — pas besoin de committer de fichier CNAME dans le dépôt,
+  // contrairement au flow "réglages du dépôt" documenté par GitHub (celui-ci committe un
+  // CNAME automatiquement, mais uniquement pour ce chemin-là, pas pour l'API).
+  registerCustomDomain(owner, repo, domain) {
+    return this._request(`/repos/${owner}/${repo}/pages`, {
+      method: "PUT",
+      body: JSON.stringify({ cname: domain || null }),
+    });
+  }
+
   // Récupère un fichier (contenu encodé en base64 par l'API). `silent404` : ne pas logger
   // en erreur console un 404 ici (utilisé pour de simples vérifications d'existence).
   getFile(owner, repo, path, ref, { silent404 = false } = {}) {

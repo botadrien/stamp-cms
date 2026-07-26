@@ -184,6 +184,47 @@ class GitLabApi {
     return response.json();
   }
 
+  // Domaine personnalisé (docs.gitlab.com/api/pages_domains/, docs.gitlab.com/ee/user/project/pages/custom_domains_ssl_tls_certification/) :
+  // contrairement à Codeberg/GitHub, GitLab exige un enregistrement explicite du domaine
+  // via une API dédiée (pas de simple champ sur la ressource "pages"), avec une étape de
+  // vérification DNS (TXT) obligatoire sur gitlab.com avant que le domaine ne serve
+  // vraiment le site. `auto_ssl_enabled` : laisse GitLab gérer le certificat Let's Encrypt
+  // automatiquement plutôt que d'exiger un certificat fourni à la main.
+  registerCustomDomain(owner, repo, domain) {
+    return this._request(`/projects/${this.projectId(owner, repo)}/pages/domains`, {
+      method: "POST",
+      body: JSON.stringify({ domain, auto_ssl_enabled: true }),
+    });
+  }
+
+  // null si le domaine n'a jamais été enregistré côté GitLab (404, silencieux : ce n'est
+  // pas une erreur, juste l'état "pas encore configuré" avant la première sauvegarde).
+  async getCustomDomainStatus(owner, repo, domain) {
+    try {
+      const info = await this._request(
+        `/projects/${this.projectId(owner, repo)}/pages/domains/${encodeURIComponent(domain)}`,
+        { silent404: true }
+      );
+      return { verified: info.verified, verificationCode: info.verification_code };
+    } catch (err) {
+      if (err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  unregisterCustomDomain(owner, repo, domain) {
+    return this._request(`/projects/${this.projectId(owner, repo)}/pages/domains/${encodeURIComponent(domain)}`, {
+      method: "DELETE",
+    });
+  }
+
+  verifyCustomDomain(owner, repo, domain) {
+    return this._request(
+      `/projects/${this.projectId(owner, repo)}/pages/domains/${encodeURIComponent(domain)}/verify`,
+      { method: "PUT" }
+    );
+  }
+
   // Récupère un fichier (contenu encodé en base64 par l'API). `silent404` : ne pas logger
   // en erreur console un 404 ici (utilisé pour de simples vérifications d'existence).
   // `sha` est ici un alias de `last_commit_id` (voir commentaire de tête de fichier), à

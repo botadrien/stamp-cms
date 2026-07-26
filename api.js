@@ -112,6 +112,40 @@ class ForgejoApi {
     });
   }
 
+  // Domaine personnalisé (voir docs.codeberg.org/codeberg-pages/using-custom-domain/) :
+  // purement basé sur le DNS côté Codeberg (aucun fichier CNAME/.domains à committer), mais
+  // le webhook créé par enablePublishing() doit cibler le domaine personnalisé plutôt que
+  // l'URL codeberg.page par défaut, sinon la prochaine publication échoue silencieusement
+  // (webhook toujours pointé sur l'ancienne URL). Retrouve le hook existant (filtré sur
+  // branch_filter "pages") plutôt que d'en garder l'id quelque part côté client.
+  async registerCustomDomain(owner, repo, domain) {
+    const hooks = await this._request(`/repos/${owner}/${repo}/hooks`);
+    const pagesHook = hooks.find((h) => h.branch_filter === "pages");
+    const url = domain ? `https://${domain}/` : this.pagesUrl(owner, repo);
+
+    // Pas de hook "pages" trouvé (site créé avant cette fonctionnalité, ou avant que le
+    // thème/webhook complet ne soit installé) : on le crée directement avec la bonne
+    // cible plutôt que de passer par enablePublishing() (qui cible toujours pagesUrl(),
+    // ignorant le domaine personnalisé).
+    if (!pagesHook) {
+      return this._request(`/repos/${owner}/${repo}/hooks`, {
+        method: "POST",
+        body: JSON.stringify({
+          type: "forgejo",
+          config: { content_type: "json", url },
+          events: ["push"],
+          branch_filter: "pages",
+          active: true,
+        }),
+      });
+    }
+
+    return this._request(`/repos/${owner}/${repo}/hooks/${pagesHook.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ config: { content_type: "json", url } }),
+    });
+  }
+
   // Récupère un fichier (contenu encodé en base64 par l'API). `silent404` : ne pas logger
   // en erreur console un 404 ici (utilisé pour de simples vérifications d'existence).
   getFile(owner, repo, path, ref, { silent404 = false } = {}) {

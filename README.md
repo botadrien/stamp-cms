@@ -25,6 +25,7 @@ Gratuit à 100% et toujours :
 - **Publication en un clic** : chaque "Publier" compile le site et le publie sur la branche `pages` du dépôt.
 - **Contenu structuré** : pages et articles de blog gérés séparément (triés par date pour le blog), écran "Réglages du site" pour le titre du blog.
 - **Suppression d'un site** : depuis "Réglages du site", zone dangereuse qui supprime le dépôt entier chez le fournisseur (irréversible, il faut retaper le nom du dépôt pour confirmer).
+- **Domaine personnalisé** : depuis "Réglages du site", sous-domaine uniquement pour l'instant (pas de domaine racine/apex) — instructions DNS et vérification en direct (CNAME, TXT le cas échéant) propres au fournisseur connecté, voir "Domaine personnalisé" plus bas pour le détail par fournisseur.
 - **Thème** : un thème vendoré, volks-typo, copié dans le dépôt de chaque site à sa création (choix de thème prévu plus tard, voir "Roadmap") — voir "Lecture du dépôt : archive complète + cache local" et "Thème copié dans chaque site" plus bas pour l'architecture.
 - **Templates** : onglet dédié pour éditer le code (HTML/Tera) des gabarits du thème, avec preview live comme pour le contenu — voir "Thème copié dans chaque site" plus bas.
 
@@ -91,7 +92,7 @@ l'image GitLab CE est nettement plus lourde/lente à démarrer (plusieurs minute
 - Conflits d'édition simultanée (verrouillage simple vs temps réel type [Yjs](https://yjs.dev/))
 - Sécurité du token OAuth stocké côté navigateur
 - Quotas de l'API du fournisseur Git
-- Domaine personnalisé
+- Domaine personnalisé : traité pour les sous-domaines (voir "Domaine personnalisé" plus bas) — les domaines racine/apex restent un point ouvert (mécanisme A/AAAA/ALIAS différent par fournisseur, pas encore supporté)
 - Médias dans le dépôt Git : ça marche, mais avec des limites de taille (repos volumineux, fichiers individuels plafonnés) — à surveiller si beaucoup de photos/vidéos
 - Rester multi-fournisseur à terme sans complexifier le MVP
 - Revenir à un gabarit de thème par défaut (annuler une personnalisation) : pas encore de pattern de suppression de fichier dans les clients API (seulement création/mise à jour) — nécessaire pour ça
@@ -174,6 +175,17 @@ Le thème complet (`themes/volks-typo/`) est copié dans le dépôt de chaque si
 Pour les sites créés avant cette fonctionnalité (ou n'ayant personnalisé qu'un seul gabarit) : `getSiteFiles()` (`site-builder.js`) fusionne toujours le thème vendoré de l'app *fichier par fichier* sous ce qui existe réellement dans le dépôt — jamais un tout-ou-rien — pour que lecture et build restent corrects même sur un dépôt partiellement aligné. L'écran "Réglages du site" propose une action explicite ("Installer le thème dans ce site") qui copie tout le thème d'un coup, purement pour rendre le dépôt autonome — jamais requis pour que le site fonctionne.
 
 L'onglet **Templates** (sidebar) liste tous les gabarits `.html` du thème (gabarits de page et includes partagés `macros/`/`partials/`), avec un éditeur de code ([CodeMirror](https://codemirror.net/), `editor-src/code-editor.js`) et la même preview live que l'éditeur de contenu — `buildPreviewSite()` (`site-builder.js`) accepte indifféremment un brouillon de page (`content/*.md`) ou de gabarit (`templates/*.html`), substitué dans les fichiers du dépôt avant le build Zola. Sauvegarder un gabarit écrit directement son chemin réel dans le dépôt (`templates/...`), sans notion d'override séparée.
+
+### Domaine personnalisé
+
+Réglage stocké dans un nouveau fichier **`site.toml`** à la racine de chaque dépôt de site (branche `main`) — première brique du futur "fichier structuré de config du site" évoqué dans "Architecture cœur/thèmes/plugins" plus bas. Jamais lu par Zola (ni `content/`, `templates/`, `static/`, `sass/`, ni `config.toml`), donc jamais publié sur la branche `pages` : reste un fichier source, comme `content/*.md`. Lu/écrit via `getCustomDomain()`/`setCustomDomain()` (`site-builder.js`), et propagé dans le `base_url` du `config.toml` généré à chaque publication (`rebuildAndPublishSite()`).
+
+**Sous-domaines uniquement** (ex. `www.exemple.com`) — pas de domaine racine/apex, pour éviter la variété de mécanismes A/AAAA/ALIAS/ANAME selon le registrar. Chaque fournisseur a un mécanisme d'activation différent (vérifié contre leurs docs officielles) :
+- **GitHub Pages** : un simple champ `cname` sur l'API Pages (`PUT /repos/{owner}/{repo}/pages`) — pas de fichier `CNAME` à committer.
+- **Codeberg Pages** : purement basé sur le DNS (CNAME + un enregistrement TXT d'autorisation à `_git-pages-repository.<domaine>`) — mais le webhook de publication existant (voir `ForgejoApi.enablePublishing`) doit être repointé vers le nouveau domaine, sans quoi la publication cible encore l'ancienne URL. Ce repointage casse la publication tant que le DNS n'a pas propagé — l'écran Réglages en avertit explicitement.
+- **GitLab Pages** : API dédiée (`/projects/:id/pages/domains`), avec une étape de vérification DNS (enregistrement TXT `gitlab-pages-verification-code=...`) obligatoire sur gitlab.com avant que le domaine ne serve réellement le site (`auto_ssl_enabled` pour un certificat Let's Encrypt automatique).
+
+**Vérification DNS en direct** (`dns-check.js`) : un vrai lookup DNS n'est pas possible depuis un navigateur, donc interrogation de l'API DNS-over-HTTPS de Cloudflare (`cloudflare-dns.com/dns-query`, CORS ouvert vérifié en direct) pour savoir si le CNAME pointe déjà vers la bonne cible — utilisé pour le bouton "Vérifier le DNS" et comme garde-fou avant de repointer le webhook Codeberg (avertissement si le DNS ne semble pas encore configuré, plutôt que de casser la publication à l'aveugle).
 
 ### Aperçu en direct
 

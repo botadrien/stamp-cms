@@ -298,6 +298,46 @@ async function setBlogTitle(owner, repo, title) {
   });
 }
 
+// Domaine personnalisé du site (voir README, section "Domaine personnalisé") : stocké
+// dans un fichier dédié à la racine du dépôt plutôt que dans le front matter de
+// content/_index.md (pas de lien logique avec le titre du blog) — première brique du
+// futur "fichier structuré de config du site" évoqué dans README ("Architecture
+// cœur/thèmes/plugins"). Jamais lu par Zola (ni content/, templates/, static/, sass/, ni
+// config.toml) : reste un fichier source sur main, jamais publié sur la branche pages.
+function extractCustomDomain(toml) {
+  const match = toml.match(/^custom_domain\s*=\s*"(.*)"\s*$/m);
+  return match ? match[1].replace(/\\"/g, '"') : null;
+}
+
+async function getCustomDomain(owner, repo) {
+  try {
+    const file = await api.getFile(owner, repo, "site.toml", "main", { silent404: true });
+    return extractCustomDomain(decodeBase64Utf8(file.content));
+  } catch (err) {
+    if (err.status === 404) return null;
+    throw err;
+  }
+}
+
+async function setCustomDomain(owner, repo, domain) {
+  let sha = null;
+  try {
+    const existing = await api.getFile(owner, repo, "site.toml", "main", { silent404: true });
+    sha = existing.sha;
+  } catch (err) {
+    if (err.status !== 404) throw err;
+  }
+  // Rien à faire : pas de domaine à enregistrer, et aucun site.toml existant à vider (pas
+  // de pattern de suppression de fichier dans les clients API, voir README — écrire un
+  // fichier vide n'a d'intérêt que pour effacer un domaine déjà stocké).
+  if (!domain && !sha) return;
+  const toml = domain ? `custom_domain = "${escapeToml(domain)}"\n` : "";
+  await api.saveFile(owner, repo, "site.toml", toml, {
+    sha,
+    message: domain ? "Mise à jour du domaine personnalisé" : "Suppression du domaine personnalisé",
+  });
+}
+
 // Construit le site en mémoire (contenu du repo + config générée) sans rien publier —
 // utilisé à la fois par rebuildAndPublishSite() et par buildPreviewSite() ci-dessous, qui
 // ne diffèrent qu'après cet appel (l'un publie sur pages, l'autre sert direct via le
@@ -378,9 +418,17 @@ async function buildPreviewSite(owner, repo, draftPath, draftText, previewBaseUr
 async function rebuildAndPublishSite(owner, repo) {
   const repoFiles = await getSiteFiles(owner, repo);
 
+  // site.toml (voir getCustomDomain/setCustomDomain) est déjà présent dans repoFiles —
+  // aucun aller-retour réseau supplémentaire pour connaître le domaine personnalisé, même
+  // logique que l'extraction du titre depuis content/_index.md ci-dessous.
+  const customDomain = repoFiles["site.toml"]
+    ? extractCustomDomain(new TextDecoder().decode(repoFiles["site.toml"]))
+    : null;
+  const baseUrl = customDomain ? `https://${customDomain}/` : api.pagesUrl(owner, repo);
+
   let output;
   try {
-    ({ files: output } = await buildSiteFiles(owner, repo, repoFiles, api.pagesUrl(owner, repo)));
+    ({ files: output } = await buildSiteFiles(owner, repo, repoFiles, baseUrl));
   } catch (err) {
     console.error("Échec du build Zola:", err.log || err.message);
     throw err;
