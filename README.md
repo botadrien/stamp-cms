@@ -9,6 +9,9 @@ Gratuit à 100% et toujours :
 - le site compilé est hébergé sur une plateforme gratuite comme Codeberg Pages.
 - plus sécurisé, pas de mise à jour à faire !
 
+**[Démo en ligne](https://botadrien.github.io/cmstatic/)** — déployée automatiquement sur GitHub Pages à chaque push (voir `.github/workflows/deploy-pages.yml`).
+> Note : la connexion sur cette démo suppose que `https://botadrien.github.io/cmstatic/` soit déclarée comme Redirect URI de l'application OAuth2 correspondante sur codeberg.org (réglage manuel, une seule fois — voir `config.js`).
+
 ![Édition d'une page avec aperçu en direct du site généré par Zola, côte à côte](docs/screenshots/live-preview.png)
 
 ## Fonctionnalités
