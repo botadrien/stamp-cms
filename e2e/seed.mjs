@@ -112,6 +112,18 @@ async function main() {
     throw new Error(`Échec création dépôt (${repoRes.status}) : ${await repoRes.text()}`);
   }
 
+  // renderDashboard() (app.js) ne liste que les dépôts portant ce topic (voir SITE_TOPIC,
+  // api.js) — sans lui, ce dépôt de test n'apparaîtrait jamais dans "Tes sites".
+  console.log("Pose du topic stamp-cms sur le dépôt de test...");
+  const topicsRes = await fetch(`${INSTANCE_URL}/api/v1/repos/${USERNAME}/${REPO_NAME}/topics`, {
+    method: "PUT",
+    headers: authHeaders,
+    body: JSON.stringify({ topics: ["stamp-cms"] }),
+  });
+  if (!topicsRes.ok) {
+    throw new Error(`Échec pose du topic stamp-cms (${topicsRes.status}) : ${await topicsRes.text()}`);
+  }
+
   // Un vrai site créé via le POC (createSite() dans app.js) a toujours une branche
   // "pages" — sans elle, "Publier" (qui republie sur cette branche) échoue.
   console.log("Création de la branche pages...");

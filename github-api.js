@@ -77,12 +77,20 @@ class GitHubApi {
     return this._request("/user/repos?per_page=50");
   }
 
-  // Crée un nouveau dépôt (public, avec un premier commit) pour un nouveau site
-  createRepo(name) {
-    return this._request("/user/repos", {
+  // Crée un nouveau dépôt (public, avec un premier commit) pour un nouveau site, et lui
+  // pose le topic SITE_TOPIC (voir api.js) — comme Forgejo, l'API de création de dépôt de
+  // GitHub n'accepte pas de topics dans le payload, d'où l'appel séparé à l'endpoint dédié
+  // ({owner}/{repo}/topics, champ "names" plutôt que "topics" côté GitHub).
+  async createRepo(name) {
+    const repo = await this._request("/user/repos", {
       method: "POST",
       body: JSON.stringify({ name, auto_init: true, private: false }),
     });
+    await this._request(`/repos/${repo.owner.login}/${repo.name}/topics`, {
+      method: "PUT",
+      body: JSON.stringify({ names: [SITE_TOPIC] }),
+    });
+    return repo;
   }
 
   // Crée une branche à partir d'une autre (utilisé pour la branche "pages"). GitHub

@@ -30,6 +30,11 @@ test("une page existante sans front matter n'empêche pas de publier une autre p
     headers: authHeaders,
     data: { name: repoName, auto_init: true, default_branch: "main" },
   });
+  // renderDashboard() (app.js) ne liste que les dépôts portant ce topic (voir SITE_TOPIC, api.js).
+  await page.request.put(`${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/topics`, {
+    headers: authHeaders,
+    data: { topics: ["stamp-cms"] },
+  });
   await page.request.post(`${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/branches`, {
     headers: authHeaders,
     data: { new_branch_name: "pages", old_branch_name: "main" },

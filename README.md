@@ -28,6 +28,7 @@ Gratuit à 100% et toujours :
 - **Domaine personnalisé** : depuis "Réglages du site", sous-domaine uniquement pour l'instant (pas de domaine racine/apex) — instructions DNS et vérification en direct (CNAME, TXT le cas échéant) propres au fournisseur connecté, voir "Domaine personnalisé" plus bas pour le détail par fournisseur.
 - **Thème** : un thème vendoré, volks-typo, copié dans le dépôt de chaque site à sa création (choix de thème prévu plus tard, voir "Roadmap") — voir "Lecture du dépôt : archive complète + cache local" et "Thème copié dans chaque site" plus bas pour l'architecture.
 - **Templates** : onglet dédié pour éditer le code (HTML/Tera) des gabarits du thème, avec preview live comme pour le contenu — voir "Thème copié dans chaque site" plus bas.
+- **Topic `stamp-cms`** : posé automatiquement sur chaque dépôt créé (topic Forgejo/GitHub/GitLab, public et cherchable). La liste "Tes sites" ne montre que les dépôts portant ce topic (les autres dépôts du compte n'y apparaissent pas), et les sites restent trouvables par recherche de topic côté fournisseur. Les dépôts créés avant l'ajout de cette fonctionnalité n'ont pas le topic et n'apparaissent donc plus dans la liste (pas de migration automatique, cohérent avec le stade très précoce du projet).
 
 ## Feuille de route
 

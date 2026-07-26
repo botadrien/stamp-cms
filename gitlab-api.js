@@ -94,11 +94,13 @@ class GitLabApi {
     return projects.map((p) => this._normalizeProject(p));
   }
 
-  // Crée un nouveau dépôt (public, avec un premier commit) pour un nouveau site
+  // Crée un nouveau dépôt (public, avec un premier commit) pour un nouveau site, avec le
+  // topic SITE_TOPIC (voir api.js) — contrairement à Forgejo/GitHub, l'API de création de
+  // projet GitLab accepte directement un champ "topics", pas besoin d'appel séparé.
   async createRepo(name) {
     const project = await this._request("/projects", {
       method: "POST",
-      body: JSON.stringify({ name, initialize_with_readme: true, visibility: "public" }),
+      body: JSON.stringify({ name, initialize_with_readme: true, visibility: "public", topics: [SITE_TOPIC] }),
     });
     return this._normalizeProject(project);
   }

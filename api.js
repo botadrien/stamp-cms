@@ -1,6 +1,14 @@
 // Petit client pour l'API Forgejo (compatible Codeberg).
 // Doc : https://codeberg.org/api/swagger
 
+// Topic posé sur chaque dépôt créé par l'appli (Forgejo/GitHub/GitLab exposent tous les
+// trois un champ "topics" public et cherchable) — permet à listRepos() de ne montrer que
+// les sites gérés par ce CMS (et pas tous les dépôts du compte), et rend les sites
+// trouvables par le grand public via la recherche par topic du fournisseur. Constante
+// globale (pas dans CONFIG) : CONFIG est entièrement remplacé par les tests e2e
+// (window.__CMS_TEST_CONFIG__, voir config.js), qui n'ont pas à connaître cette valeur.
+const SITE_TOPIC = "stamp-cms";
+
 // Messages non-techniques par défaut selon le code HTTP — jamais de JSON/stack trace
 // brut affiché à l'utilisateur·rice (voir docs/objective.md, section "Gestion des
 // erreurs"). Les cas qui ont besoin de plus de contexte (ex. conflit d'édition, nom de
@@ -77,12 +85,19 @@ class ForgejoApi {
     return this._request("/user/repos?limit=50");
   }
 
-  // Crée un nouveau dépôt (public, avec un premier commit) pour un nouveau site
-  createRepo(name) {
-    return this._request("/user/repos", {
+  // Crée un nouveau dépôt (public, avec un premier commit) pour un nouveau site, et lui
+  // pose le topic SITE_TOPIC — l'API de création de dépôt de Gitea/Forgejo n'accepte pas
+  // de topics directement dans le payload, d'où l'appel séparé à l'endpoint dédié.
+  async createRepo(name) {
+    const repo = await this._request("/user/repos", {
       method: "POST",
       body: JSON.stringify({ name, auto_init: true, private: false }),
     });
+    await this._request(`/repos/${repo.owner.login}/${repo.name}/topics`, {
+      method: "PUT",
+      body: JSON.stringify({ topics: [SITE_TOPIC] }),
+    });
+    return repo;
   }
 
   // Crée une branche à partir d'une autre (utilisé pour la branche "pages")

@@ -311,7 +311,7 @@ async function renderDashboard() {
 
   let repos;
   try {
-    repos = await api.listRepos();
+    repos = (await api.listRepos()).filter((r) => (r.topics || []).includes(SITE_TOPIC));
   } catch (err) {
     if (err.status === 401) {
       sessionStorage.clear();

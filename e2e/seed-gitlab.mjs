@@ -104,7 +104,8 @@ async function main() {
   const repoRes = await fetch(`${INSTANCE_URL}/api/v4/projects`, {
     method: "POST",
     headers: authHeaders,
-    body: JSON.stringify({ name: REPO_NAME, initialize_with_readme: true, visibility: "public" }),
+    // renderDashboard() (app.js) ne liste que les dépôts portant ce topic (voir SITE_TOPIC, api.js).
+    body: JSON.stringify({ name: REPO_NAME, initialize_with_readme: true, visibility: "public", topics: ["stamp-cms"] }),
   });
   if (!repoRes.ok) {
     throw new Error(`Échec création projet (${repoRes.status}) : ${await repoRes.text()}`);
