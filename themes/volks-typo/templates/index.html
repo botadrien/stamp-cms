@@ -6,9 +6,6 @@
 {% extends "base.html" %}
 {% import "macros/seo.html" as seo %}
 
-{% block sidebar_class %}{% endblock %}
-{% block sidebar %}{% endblock %}
-
 {% block seo %}{{ seo::seo(title=config.title) }}{% endblock %}
 
 {% block content %}

@@ -69,7 +69,7 @@ base_url = "${escapeToml(baseUrl)}"
 # scripts/fetch-theme-volks-typo.sh) — plus de sass/ à compiler, ça évite de repayer ce
 # coût à chaque build (publication et surtout chaque aperçu live).
 compile_sass = false
-build_search_index = true
+feed_filename = "rss.xml"
 
 taxonomies = [
   { name = "categories" },
@@ -79,15 +79,10 @@ taxonomies = [
 [markdown.highlighting]
 theme = "nord"
 
-[search]
-index_format = "elasticlunr_json"
-
 [extra]
 # Pas encore éditable depuis le CMS (voir écran "Réglages du site" pour le titre du
 # blog, le seul réglage exposé pour l'instant).
 author_name = "Auteur du site"
-author_bio = "Ce site est propulsé par CMS Statique."
-sidebar_position = "left"
 list_images = true
 # footer.html boucle dessus sans le protéger d'un {% if %} — doit toujours être défini,
 # même vide (pas encore de réglage réseaux sociaux dans le CMS).
@@ -120,7 +115,7 @@ sort_by = "date"
 template = "blog.html"
 page_template = "page.html"
 paginate_by = 10
-generate_feeds = true
+generate_feed = true
 +++
 `;
 }

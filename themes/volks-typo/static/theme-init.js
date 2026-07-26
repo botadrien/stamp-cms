@@ -8,9 +8,4 @@
   var el = document.documentElement;
   el.dataset.theme = mode === 'auto' ? system : mode;
   el.dataset.themeMode = mode;
-
-  // Restore the sidebar shown/hidden choice before render to avoid a layout flash.
-  if (localStorage.getItem('sidebar') === 'hidden') {
-    el.dataset.sidebar = 'hidden';
-  }
 })();
