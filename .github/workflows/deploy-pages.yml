@@ -27,7 +27,7 @@ jobs:
       - name: Assemble runtime files
         run: |
           mkdir dist
-          cp index.html config.js api.js auth.js pkce.js site-builder.js icons.js app.js sw.js icon.svg github-api.js gitlab-api.js providers.js tar-utils.js repo-cache.js dist/
+          cp index.html config.js api.js auth.js pkce.js site-builder.js icons.js app.js sw.js icon.svg github-api.js gitlab-api.js providers.js tar-utils.js repo-cache.js dns-check.js dist/
           cp editor.bundle.js editor.bundle.css zola-builder.bundle.js code-editor.bundle.js dist/
           cp -r vendor themes dist/
       - uses: actions/upload-pages-artifact@v3

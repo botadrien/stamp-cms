@@ -114,7 +114,7 @@ function renderLogin(extraMessage = "") {
         (voir README) — colle plutôt un jeton d'accès personnel (scopes <code>repo</code> et
         <code>delete_repo</code>, ce dernier nécessaire pour supprimer un site depuis les réglages).
       </p>
-      <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo&description=Stamperia" target="_blank" rel="noopener">
+      <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo&description=Stamp+CMS" target="_blank" rel="noopener">
         ${ICONS.external} Créer un jeton sur GitHub
       </a>
       <label for="githubTokenInput">Jeton d'accès personnel</label>

@@ -9,7 +9,7 @@
 // caractères seulement — inadapté aux assets binaires du thème). IndexedDB : async, quota
 // bien plus large, stocke nativement des Uint8Array.
 
-const REPO_CACHE_DB_NAME = "cmstatic-repo-cache";
+const REPO_CACHE_DB_NAME = "stamp-cms-repo-cache";
 const REPO_CACHE_DB_VERSION = 1;
 const REPO_CACHE_STORE = "repos";
 
