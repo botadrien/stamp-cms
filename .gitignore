@@ -2,6 +2,7 @@
 tmp
 node_modules
 e2e/.seed.json
+e2e/.seed-gitlab.json
 test-results
 playwright-report
 editor.bundle.js

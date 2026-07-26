@@ -7,7 +7,11 @@
     "e2e:up": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans; docker compose -f e2e/docker-compose.yml up -d && node e2e/seed.mjs",
     "e2e:down": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans",
     "e2e:test": "npm run build && playwright test -c e2e/playwright.config.mjs",
-    "e2e": "npm run e2e:up && npm run e2e:test; status=$?; npm run e2e:down; exit $status"
+    "e2e": "npm run e2e:up && npm run e2e:test; status=$?; npm run e2e:down; exit $status",
+    "e2e:gitlab:up": "docker compose -f e2e/docker-compose.gitlab.yml down -v --remove-orphans; docker compose -f e2e/docker-compose.gitlab.yml up -d && node e2e/seed-gitlab.mjs",
+    "e2e:gitlab:down": "docker compose -f e2e/docker-compose.gitlab.yml down -v --remove-orphans",
+    "e2e:gitlab:test": "npm run build && playwright test -c e2e/playwright.gitlab.config.mjs",
+    "e2e:gitlab": "npm run e2e:gitlab:up && npm run e2e:gitlab:test; status=$?; npm run e2e:gitlab:down; exit $status"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

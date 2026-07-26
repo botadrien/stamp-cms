@@ -174,6 +174,13 @@ class GitHubApi {
     });
   }
 
+  // Conflit d'édition simultanée : l'API contents de GitHub répond 409 quand le sha envoyé
+  // ne correspond plus au fichier côté serveur (contrairement à Forgejo/Codeberg, qui
+  // répondent 422 pour le même cas — voir ForgejoApi.isConflict).
+  isConflict(err) {
+    return err.status === 409;
+  }
+
   // URL publique du site une fois publié sur GitHub Pages :
   // https://{owner}.github.io/{repo}/, sauf si le dépôt s'appelle "{owner}.github.io"
   // (site racine de l'utilisateur·rice, insensible à la casse).

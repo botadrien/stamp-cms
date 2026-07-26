@@ -172,6 +172,12 @@ class ForgejoApi {
     });
   }
 
+  // Conflit d'édition simultanée : Forgejo/Codeberg répondent 422 (pas 409) quand le sha
+  // envoyé ne correspond plus au fichier côté serveur.
+  isConflict(err) {
+    return err.status === 422;
+  }
+
   // URL publique du site une fois publié sur Codeberg Pages
   // (https://docs.codeberg.org/codeberg-pages/) : https://{owner}.codeberg.page/{repo}/,
   // sauf si le dépôt s'appelle "pages" (site racine de l'utilisateur·rice).

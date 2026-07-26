@@ -6,6 +6,8 @@ If the coding agent tool is started on a personal computer directly rather than 
 
 ## Conventions for AI agents working on this repo.
 
+**Langue** : toujours répondre en français à l'utilisateur sur ce projet, jamais en portugais (même en mode caveman/compressé).
+
 Read `README.md` before starting work — it covers project ambition, status, and architecture decisions (and why some alternatives were dropped).
 When you add or change a feature, update `README.md` to match (status, "Tester en local" steps, "Points à trancher" if something got resolved or newly opened).
 

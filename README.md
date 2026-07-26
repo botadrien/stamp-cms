@@ -16,8 +16,8 @@ Gratuit à 100% et toujours :
 
 ## Fonctionnalités
 
-- **Connexion sans serveur** : OAuth2 + PKCE directement vers Codeberg (pas besoin de bridge), ou jeton d'accès personnel collé à la main pour GitHub (voir "Forges git" ci-dessous pour pourquoi GitHub n'a pas droit au même flow OAuth). Droits d'accès = rôles natifs du fournisseur choisi.
-- **Multi-fournisseur** : Codeberg et GitHub aujourd'hui, via une couche d'abstraction commune (`api.js`/`github-api.js`/`providers.js`) pensée pour qu'ajouter un fournisseur de plus (GitLab...) n'exige pas de refonte.
+- **Connexion sans serveur** : OAuth2 + PKCE directement vers Codeberg ou GitLab (pas besoin de bridge), ou jeton d'accès personnel collé à la main pour GitHub (voir "Forges git" ci-dessous pour pourquoi GitHub n'a pas droit au même flow OAuth). Droits d'accès = rôles natifs du fournisseur choisi.
+- **Multi-fournisseur** : Codeberg, GitHub et GitLab (gitlab.com uniquement, pas de self-hosted), via une couche d'abstraction commune (`api.js`/`github-api.js`/`gitlab-api.js`/`providers.js`) pensée pour qu'ajouter un fournisseur de plus n'exige pas de refonte.
 - **Édition riche** : éditeur visuel similaire à Notion ([BlockNote.js](https://www.blocknote.js.org/) sur [ProseMirror](https://prosemirror.net/))
   Contenu stocké en Markdown, source de vérité dans le dépôt Git, commit direct à chaque enregistrement.
 - **Génération du site** avec [Zola](https://www.getzola.org/), compilé en WebAssembly et exécuté **dans le navigateur** à chaque publication.
@@ -30,7 +30,7 @@ Gratuit à 100% et toujours :
 
 1. **Gestion des médias** (images, etc.) dans le dépôt Git.
 2. **Système de plugins/thèmes**, avec une API d'extension stable pensée dès maintenant pour éviter un refactor douloureux plus tard, en vue d'une marketplace de plugins et de thèmes.
-3. **GitLab** (ou d'autres fournisseurs) derrière la même couche d'abstraction — Codeberg et GitHub y sont déjà branchés, voir "Forges git" plus bas.
+3. D'autres fournisseurs derrière la même couche d'abstraction — Codeberg, GitHub et GitLab y sont déjà branchés, voir "Forges git" plus bas.
 
 ## État de l'art / Inspirations
 
@@ -53,6 +53,12 @@ Pour se connecter avec GitHub à la place, rien à configurer : générer un jet
 personnel classique avec le scope `repo` (le POC propose un lien direct vers l'écran de
 création du jeton, scope pré-rempli) et le coller sur l'écran de connexion.
 
+Pour se connecter avec GitLab (gitlab.com uniquement) : créer une application sur
+[gitlab.com/-/user_settings/applications](https://gitlab.com/-/user_settings/applications)
+avec comme Redirect URI `http://localhost:8080`, scope `api` uniquement, et **décocher
+"Confidential"** pour forcer PKCE (pas de secret nécessaire). Coller l'"Application ID"
+généré dans `gitlabClientId` dans `config.js`.
+
 ### Lancer les tests
 
 Plutôt que de mocker les appels API, les tests e2e (`e2e/`) font tourner une vraie instance [Forgejo](https://forgejo.org/) en local via Docker et pilotent un vrai navigateur (Playwright) à travers le flow complet : login OAuth2+PKCE réel (formulaire de connexion, écran de consentement), édition et commit d'un fichier — vérifié ensuite via l'API Forgejo elle-même.
@@ -69,6 +75,11 @@ npm run e2e:up     # démarre Forgejo, crée un user/app OAuth2/dépôt de test 
 npm run e2e:test   # lance les tests Playwright (démarre aussi le serveur statique du POC)
 npm run e2e:down   # arrête et nettoie
 ```
+
+Suite e2e GitLab séparée (`npm run e2e:gitlab`) — même principe (vraie instance `gitlab/gitlab-ce`
+en Docker, pas de mock), mais **pas incluse dans `npm run e2e` ni dans la CI par défaut** :
+l'image GitLab CE est nettement plus lourde/lente à démarrer (plusieurs minutes, contre
+~1 min pour Forgejo). À lancer manuellement pour tester le chemin GitLab.
 
 
 ## Points à trancher / vigilance
@@ -103,6 +114,12 @@ C’est l'architecture "normale" pour un générateur de site statiques : compil
 
 écarté après un vrai essai : Hugo compile en WASM mais son pipeline d'assets (Sass) dépend de `os/exec` pour appeler un binaire Dart Sass externe, ce qu'un bac à sable WebAssembly ne permet pas (aucun lancement de process).
 
+### Archive tar.gz du dépôt plutôt qu'un blob par fichier en lecture
+
+Idée : remplacer le `listTree` + un `getBlob` par fichier (`walkContentFiles`, en parallèle mais toujours N requêtes) par un seul appel à l'endpoint d'archive (`/archive/{ref}.tar.gz` en Forgejo, `/tarball/{ref}` en GitHub), décompressé côté navigateur (`DecompressionStream` natif + petit parseur tar maison, pas de dépendance zip).
+Fonctionne côté Forgejo/Codeberg (CORS ouvert, `access-control-allow-origin: *` vérifié en direct).
+Mais l'endpoint GitHub redirige vers `codeload.github.com`, qui renvoie `access-control-allow-origin: https://render.githubusercontent.com` — pas `*`, pas notre origine — donc bloqué en fetch navigateur, sans backend à nous pour proxifier. Écarté : les deux fournisseurs doivent passer par le même code (`api.js`/`github-api.js`), et le gain ne se justifie pas pour brancher un chemin différent par fournisseur tant que la volumétrie des sites reste petite.
+
 ## Détails techniques
 
 ### Forges git
@@ -114,7 +131,13 @@ Mais Forgejo vanilla ne le fait pas nativement sur ces routes.
 **Pourquoi GitHub n'a pas le même flow OAuth2 + PKCE que Codeberg** : `api.github.com` répond bien en CORS pour tous les appels REST une fois authentifié, mais `github.com/login/oauth/access_token` (l'échange code → token) ne renvoie aucun en-tête CORS, ce qui bloque l'appel depuis un navigateur.
 Pire, même avec le support PKCE ajouté par GitHub en 2025, GitHub exige toujours un `client_secret` pour cet échange — un secret qu'on ne peut pas committer dans une appli 100% front sans le rendre public à toustes.
 Plutôt qu'un serveur/proxy dédié rien que pour cet échange (qui aurait été le premier serveur requis par ce projet, contraire à son principe fondateur), GitHub se connecte via un jeton d'accès personnel collé à la main — voir `github-api.js`, `providers.js` et `auth.js:loginWithToken`.
-La couche d'abstraction (`ForgejoApi` dans `api.js`, `GitHubApi` dans `github-api.js`, choix du bon client via `providers.js`) absorbe aussi les différences d'API entre les deux forges : création de branche (un seul appel côté Forgejo, lecture de ref + création de ref côté GitHub), activation de la publication (webhook côté Codeberg Pages, appel dédié à l'API Pages côté GitHub), et `PUT` systématique de l'API contents de GitHub là où Forgejo distingue `POST`/`PUT` selon création ou mise à jour.
+
+**GitLab** (gitlab.com uniquement, pas de self-hosted) a bien droit au flow OAuth2 + PKCE en un clic comme Codeberg : `gitlab.com/oauth/token` renvoie `access-control-allow-origin: *` (vérifié en direct, preflight et réponse réelle), pas de blocage CORS comme sur GitHub.
+En revanche GitLab Pages n'a pas d'équivalent du webhook Codeberg ou de l'API Pages GitHub : son API Pages (`GET`/`PATCH`/`DELETE /projects/:id/pages`) ne gère que les réglages (domaine, HTTPS) et la dépublication, aucun endpoint d'upload direct — **un pipeline CI est toujours requis pour publier**, contrairement aux deux autres fournisseurs.
+`GitLabApi.enablePublishing()` (`gitlab-api.js`) committe donc une fois un `.gitlab-ci.yml` minimal dont le job ne compile rien : il republie tel quel (via `rsync`) le contenu déjà buildé côté client et présent sur la branche `pages`, pour rester cohérent avec le principe du projet (compilation toujours dans le navigateur, jamais côté serveur/CI).
+
+La couche d'abstraction (`ForgejoApi` dans `api.js`, `GitHubApi` dans `github-api.js`, `GitLabApi` dans `gitlab-api.js`, choix du bon client via `providers.js`) absorbe les différences d'API entre les trois forges : création de branche (un seul appel côté Forgejo/GitLab, lecture de ref + création de ref côté GitHub), activation de la publication (webhook côté Codeberg Pages, appel dédié à l'API Pages côté GitHub, `.gitlab-ci.yml` committé côté GitLab), `PUT` systématique de l'API contents de GitHub là où Forgejo/GitLab distinguent `POST`/`PUT` selon création ou mise à jour, et la détection de conflit d'édition (422 chez Forgejo, 409 chez GitHub, 400 chez GitLab — voir `isConflict()` sur chaque client).
+GitLab identifie aussi ses projets par un chemin `owner/repo` URL-encodé en un seul segment d'URL plutôt que deux segments séparés, et pagine son endpoint d'arbre de fichiers (`listTree()`) là où Forgejo/GitHub renvoient tout en un seul appel — détails absorbés par `gitlab-api.js`, voir ses commentaires de tête de fichier.
 
 ### Génération du site dans le navigateur
 

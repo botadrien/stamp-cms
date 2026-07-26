@@ -1,0 +1,34 @@
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    hostname: localhost
+    shm_size: "256m"
+    environment:
+      # Reconnu directement par l'image officielle au premier démarrage (pas besoin de
+      # passer par gitlab_rails['initial_root_password'] dans GITLAB_OMNIBUS_CONFIG).
+      - GITLAB_ROOT_PASSWORD=e2e-Root-Passw0rd!
+      - GITLAB_OMNIBUS_CONFIG=external_url 'http://localhost:3000'; gitlab_rails['gitlab_shell_ssh_port'] = 2222; prometheus_monitoring['enable'] = false; gitlab_rails['registry_enabled'] = false; gitlab_rails['gitlab_email_enabled'] = false
+    volumes:
+      - gitlab-config:/etc/gitlab
+      - gitlab-logs:/var/log/gitlab
+      - gitlab-data:/var/opt/gitlab
+    # Pas de port publié ici : voir le service "proxy" ci-dessous (même principe que
+    # e2e/docker-compose.yml pour Forgejo).
+
+  # gitlab.com répond en CORS (access-control-allow-origin: *) sur /oauth/token et
+  # /api/v4/* via sa couche Cloudflare — un GitLab CE auto-hébergé nu ne le fait pas par
+  # défaut. Ce proxy rejoue ce comportement pour que l'environnement local colle à la
+  # vraie prod (voir e2e/Caddyfile pour le même principe côté Forgejo).
+  proxy:
+    image: caddy:2-alpine
+    depends_on:
+      - gitlab
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Caddyfile.gitlab:/etc/caddy/Caddyfile:ro
+
+volumes:
+  gitlab-config:
+  gitlab-logs:
+  gitlab-data:

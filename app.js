@@ -97,7 +97,14 @@ function renderLogin(extraMessage = "") {
         intermédiaire : le jeton d'accès reste dans ton navigateur (sessionStorage), et
         disparaît si tu fermes l'onglet.
       </p>
-      <button onclick="startLogin()">Se connecter avec Codeberg</button>
+      <button onclick="startLogin('codeberg')">Se connecter avec Codeberg</button>
+    </div>
+    <div class="card">
+      <h2>Se connecter avec GitLab</h2>
+      <p style="color:var(--muted); font-size:14px; line-height:1.6;">
+        Publication sur gitlab.com uniquement (pas d'instance GitLab auto-hébergée pour l'instant).
+      </p>
+      <button onclick="startLogin('gitlab')">Se connecter avec GitLab</button>
     </div>
     <div class="card">
       <h2>Se connecter avec GitHub</h2>
@@ -479,8 +486,10 @@ async function saveBlogTitle() {
   try {
     await setBlogTitle(currentRepo.owner, currentRepo.name, title);
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
-    await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
-    statusEl.innerHTML = renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
+    const { warning } = await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
+    statusEl.innerHTML = warning
+      ? renderStatus(warning, "error")
+      : renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
   } catch (err) {
     statusEl.innerHTML = renderStatus(err.message, "error");
   }
@@ -667,12 +676,14 @@ async function saveFile() {
     markdownSaved = true;
 
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
-    await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
+    const { warning } = await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
 
-    statusEl.innerHTML = renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
+    statusEl.innerHTML = warning
+      ? renderStatus(warning, "error")
+      : renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
   } catch (err) {
-    // Forgejo/Codeberg répondent 422 (pas 409) quand le sha envoyé ne correspond plus au
-    // fichier côté serveur — ça n'arrive que si on avait un sha (mise à jour, pas création).
+    // Chaque fournisseur répond différemment à un sha périmé (voir api.isConflict) — ça
+    // n'arrive que si on avait un sha (mise à jour, pas création).
     if (markdownSaved) {
       // Le contenu est bien enregistré (source de vérité) ; seule la republication du
       // site a échoué — ne pas laisser croire que la page elle-même n'est pas publiée.
@@ -683,7 +694,7 @@ async function saveFile() {
       return;
     }
     const message =
-      renderEditor.currentSha && err.status === 422
+      renderEditor.currentSha && api.isConflict(err)
         ? "Cette page a été modifiée entre-temps ailleurs — retourne à la liste des pages et rouvre-la avant de publier, pour ne pas écraser ce changement."
         : err.message;
     statusEl.innerHTML = renderStatus(message, "error");

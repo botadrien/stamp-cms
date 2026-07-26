@@ -18,4 +18,8 @@ const ICONS = {
   // Pas la marque Codeberg officielle (données non disponibles hors-ligne) — un sapin
   // générique, clin d'œil à leur mascotte, dans le même style plein que l'icône GitHub.
   codeberg: `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1L4 7h2.2L3 12h3.1v3h3.8v-3H13L9.8 7H12L8 1z"/></svg>`,
+  // Pas la marque GitLab officielle (données non disponibles hors-ligne) — un losange
+  // générique en trois pointes, clin d'œil au logo "tanuki" à trois pans, même style
+  // plein que les icônes GitHub/Codeberg ci-dessus.
+  gitlab: `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 14.5L1.5 8.8 3 3.5h1.6L8 8.8l3.4-5.3H13l1.5 5.3z"/></svg>`,
 };

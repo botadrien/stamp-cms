@@ -328,5 +328,20 @@ async function rebuildAndPublishSite(owner, repo) {
 
   await api.publishFiles(owner, repo, "pages", output);
 
-  return { pageCount: Object.keys(output).length };
+  // Best-effort : certains fournisseurs (GitLab) exigent un pipeline CI pour publier quoi
+  // que ce soit, qui peut rester bloqué indéfiniment faute de runner disponible — voir
+  // GitLabApi.checkPublishHealth(). Pas d'équivalent Forgejo/GitHub (aucun des deux ne
+  // dépend d'un pipeline pour publier), d'où l'appel optionnel (`?.`) plutôt qu'une méthode
+  // obligatoire sur tous les clients. Un échec de cette vérification ne doit pas faire
+  // échouer la publication elle-même (déjà faite à ce stade).
+  let warning = null;
+  if (api.checkPublishHealth) {
+    try {
+      warning = await api.checkPublishHealth(owner, repo, "pages");
+    } catch (err) {
+      console.error("Échec de la vérification de santé du pipeline:", err.message);
+    }
+  }
+
+  return { pageCount: Object.keys(output).length, warning };
 }
