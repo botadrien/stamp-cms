@@ -19,6 +19,8 @@ No linter configured yet.
 Every site is built with a single hardcoded theme, vendored under `themes/volks-typo/` (`CURRENT_THEME` in `site-builder.js` — see that file's comment for the intended theme-picker hook).
 Content under `content/` is split into standalone pages (`content/*.md`) and blog posts (`content/blog/*.md`), surfaced as two separate groups in the "pages du site" screen (`app.js`: `listContentPages`/`renderPageGroup`).
 
+This is a very early stage project, it's okay to break support for previously created websites, no need to suggest migrating tools each time you make a breaking change.
+
 ## Tests
 
 e2e tests (`e2e/`) run Playwright against a real local Forgejo instance (Docker) rather than mocking API calls — see the "Tests e2e" section in `README.md` for how to run them (`npm run e2e`).
