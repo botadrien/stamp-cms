@@ -38,6 +38,7 @@ Gratuit à 100% et toujours :
 - **[Sveltia CMS](https://github.com/sveltia/sveltia-cms)** — successeur spirituel de Decap, UI plus moderne, config toujours technique
 - **[Publii](https://getpublii.com/)** — facile à utiliser sans être développeur·euse. L'app desktop à installer rend la collaboration compliquée.
 - **[GitCMS](https://github.com/BestPlayerMMIII/GitCMS)** (open source, éditeur TipTap) et **[gitcms.dev](https://gitcms.dev/)** (service commercial, mais passe par une GitHub App donc nécessite un backend — hors scope ici)
+- **[VvvebJs](https://github.com/givanz/VvvebJs)** — édition en place sur le DOM réel, sans preview séparée, vanilla JS sans build tool. Pas réutilisable tel quel (pages HTML statiques, pas de séparation contenu/template, couplé à Bootstrap), mais bonne référence d'architecture pour une édition inline sans framework lourd.
 
 ## Développement / Contribuer
 
@@ -120,6 +121,12 @@ Idée : remplacer le `listTree` + un `getBlob` par fichier (`walkContentFiles`, 
 Fonctionne côté Forgejo/Codeberg (CORS ouvert, `access-control-allow-origin: *` vérifié en direct).
 Mais l'endpoint GitHub redirige vers `codeload.github.com`, qui renvoie `access-control-allow-origin: https://render.githubusercontent.com` — pas `*`, pas notre origine — donc bloqué en fetch navigateur, sans backend à nous pour proxifier. Écarté : les deux fournisseurs doivent passer par le même code (`api.js`/`github-api.js`), et le gain ne se justifie pas pour brancher un chemin différent par fournisseur tant que la volumétrie des sites reste petite.
 
+### Réutiliser l'éditeur Gutenberg de WordPress
+
+Idée : reprendre `@wordpress/block-editor` (npm, utilisable hors WordPress via des projets comme [isolated-block-editor](https://github.com/Automattic/isolated-block-editor)) plutôt que redévelopper un éditeur par blocs.
+Écarté : licence GPLv2+ (copyleft fort, tension avec une marketplace de plugins/thèmes payants), couplage à une API REST WordPress à démonter, format de sérialisation en HTML à commentaires plutôt que Markdown (contredit "contenu stocké en Markdown" ci-dessus), dépendances plus lourdes que BlockNote.
+Et surtout : ça n'évite pas le vrai travail (mapper chaque bloc vers une macro Tera pour le rendu publié) — le rendu WordPress passe par PHP, inutilisable tel quel avec Zola.
+
 ## Détails techniques
 
 ### Forges git
@@ -167,4 +174,15 @@ BlockNote (React + ProseMirror + Mantine) est trop imbriqué pour un `<script>`/
 Il génère ensuite `index.html` depuis `index.template.html` (le fichier à éditer, `index.html` est gitignore).
 Chaque script/style local reçoit un `?v=<hash du commit>`, pour éviter le cache périmé après déploiement.
 Le reste de l'app : scripts classiques, sans build.
+
+### Architecture cœur/thèmes/plugins (à venir)
+
+Pour le futur système de plugins/thèmes (feuille de route, item 2), approche **hybride** retenue plutôt qu'un vrai split en deux outils.
+Le cœur (`app.js`, `api.js`, éditeur, orchestrateur de build) reste hébergé centralement sur stamperia.io, mis à jour pour tous les sites d'un coup.
+Thèmes et plugins sont vendorés/chargés depuis le repo de chaque site, en étendant le pattern déjà utilisé pour `themes/volks-typo/manifest.json`.
+
+Pourquoi : updates cœur centralisées (vs vrai split où chaque site fige sa version à la création), repos de site plus légers, une seule surface de sécurité à auditer, réutilise un mécanisme déjà en place.
+Migrer plus tard vers un vrai split ("eject" = copier le cœur dans le repo une fois) resterait facile depuis l'hybride ; l'inverse serait coûteux une fois des sites divergés — d'où ce point de départ, à condition de traiter l'API cœur/plugin comme un contrat stable dès le début.
+
+Config du site (thème choisi, réglages plugins) : fichier structuré (JSON/TOML) dans le repo, pas SQLite — reste diff-friendly et cohérent avec l'approche actuelle (front matter + `config.toml` généré), évite les conflits de merge sur binaire que SQLite documente lui-même comme un mauvais fit pour git.
 
