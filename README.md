@@ -24,7 +24,8 @@ Gratuit à 100% et toujours :
 - **Aperçu en direct** : pendant l'édition, un volet à côté de l'éditeur montre le site réellement généré par Zola (nav, thème, mise en page) à partir du brouillon en cours — rien n'est publié tant qu'on n'a pas cliqué sur "Publier".
 - **Publication en un clic** : chaque "Publier" compile le site et le publie sur la branche `pages` du dépôt.
 - **Contenu structuré** : pages et articles de blog gérés séparément (triés par date pour le blog), écran "Réglages du site" pour le titre du blog.
-- **Thème** : un thème vendoré, volks-typo, appliqué à chaque site créé (choix de thème prévu plus tard, voir "Roadmap").
+- **Thème** : un thème vendoré, volks-typo, copié dans le dépôt de chaque site à sa création (choix de thème prévu plus tard, voir "Roadmap") — voir "Lecture du dépôt : archive complète + cache local" et "Thème copié dans chaque site" plus bas pour l'architecture.
+- **Templates** : onglet dédié pour éditer le code (HTML/Tera) des gabarits du thème, avec preview live comme pour le contenu — voir "Thème copié dans chaque site" plus bas.
 
 ## Feuille de route
 
@@ -91,6 +92,8 @@ l'image GitLab CE est nettement plus lourde/lente à démarrer (plusieurs minute
 - Domaine personnalisé
 - Médias dans le dépôt Git : ça marche, mais avec des limites de taille (repos volumineux, fichiers individuels plafonnés) — à surveiller si beaucoup de photos/vidéos
 - Rester multi-fournisseur à terme sans complexifier le MVP
+- Revenir à un gabarit de thème par défaut (annuler une personnalisation) : pas encore de pattern de suppression de fichier dans les clients API (seulement création/mise à jour) — nécessaire pour ça
+- Resynchroniser le thème d'un site avec des correctifs futurs de `themes/volks-typo/` : pas de mécanisme prévu pour l'instant (voir "Thème copié dans chaque site")
 
 ## Pistes explorées et mises de côté
 
@@ -114,12 +117,6 @@ C’est l'architecture "normale" pour un générateur de site statiques : compil
 ### [Hugo](https://gohugo.io/) plutôt que Zola
 
 écarté après un vrai essai : Hugo compile en WASM mais son pipeline d'assets (Sass) dépend de `os/exec` pour appeler un binaire Dart Sass externe, ce qu'un bac à sable WebAssembly ne permet pas (aucun lancement de process).
-
-### Archive tar.gz du dépôt plutôt qu'un blob par fichier en lecture
-
-Idée : remplacer le `listTree` + un `getBlob` par fichier (`walkContentFiles`, en parallèle mais toujours N requêtes) par un seul appel à l'endpoint d'archive (`/archive/{ref}.tar.gz` en Forgejo, `/tarball/{ref}` en GitHub), décompressé côté navigateur (`DecompressionStream` natif + petit parseur tar maison, pas de dépendance zip).
-Fonctionne côté Forgejo/Codeberg (CORS ouvert, `access-control-allow-origin: *` vérifié en direct).
-Mais l'endpoint GitHub redirige vers `codeload.github.com`, qui renvoie `access-control-allow-origin: https://render.githubusercontent.com` — pas `*`, pas notre origine — donc bloqué en fetch navigateur, sans backend à nous pour proxifier. Écarté : les deux fournisseurs doivent passer par le même code (`api.js`/`github-api.js`), et le gain ne se justifie pas pour brancher un chemin différent par fournisseur tant que la volumétrie des sites reste petite.
 
 ### Réutiliser l'éditeur Gutenberg de WordPress
 
@@ -157,20 +154,37 @@ On l'utilise avec un système de fichiers entièrement en mémoire (voir `editor
 
 Lors de la publication du site, on l'éxecute navigateur puis chaque fichier compilé (HTML, CSS images) produit est publié sur la branche `pages`.
 
-Chaque site est buildé avec le même thème Zola vendoré, **volks-typo** (`themes/volks-typo/`, récupéré via `scripts/fetch-theme-volks-typo.sh` — voir `site-builder.js` pour le point d'accroche prévu pour un choix de thème plus tard).
+Chaque site est buildé avec le thème Zola vendoré dans l'app, **volks-typo** (`themes/volks-typo/`, récupéré via `scripts/fetch-theme-volks-typo.sh`) — copié dans le dépôt du site à sa création plutôt que relu depuis l'app à chaque build, voir "Thème copié dans chaque site" ci-dessous pour l'architecture complète et le point d'accroche pour un choix de thème plus tard.
+
+### Lecture du dépôt : archive complète + cache local
+
+`content/` (pages, articles) et `templates/` (thème du site, voir ci-dessous) sont lus ensemble, en un seul aller-retour réseau par fournisseur plutôt qu'un appel par fichier :
+- **Forgejo/Codeberg et GitLab** : un appel à l'endpoint d'archive (`/archive/{ref}.tar.gz`, `/repository/archive.tar.gz`), CORS ouvert vérifié en direct sur les deux (`access-control-allow-origin: *`), décompressé et parsé côté navigateur (`DecompressionStream` natif + petit parseur tar maison dans `tar-utils.js`, pas de dépendance zip).
+- **GitHub** : l'archive/tarball est bloquée pour un usage navigateur (`/tarball/{ref}` redirige vers `codeload.github.com`, qui ne renvoie `access-control-allow-origin` que pour `render.githubusercontent.com`, vérifié en direct). À la place : un `listTree` (déjà un seul appel) puis **une seule** requête GraphQL groupée (`api.github.com/graphql`, CORS ouvert vérifié) avec un alias par fichier — les fichiers binaires (polices, images du thème) retombent individuellement sur l'API blob REST, le type `Blob` de GraphQL GitHub n'exposant pas de contenu base64 (`text` vaut `null` pour un blob binaire).
+- Piège rencontré (et corrigé) sur l'endpoint archive Forgejo : il répond `Cache-Control: private, max-age=300` sur une URL qui ne varie pas avec le commit (`.../archive/main.tar.gz`) — sans `cache: "no-store"` explicite sur le `fetch`, le cache HTTP du navigateur pouvait reservir une archive périmée après deux publications rapprochées (repéré via la suite e2e, page fraîchement publiée absente de la liste juste après).
+
+Le résultat (`{ chemin: Uint8Array }` pour tout le dépôt) est mis en cache localement en **IndexedDB** (`repo-cache.js`) plutôt que retéléchargé à chaque écran : un sha HEAD de branche (appel léger, un par fournisseur) est comparé au sha mis en cache avant de décider de retélécharger ou non — `localStorage` a été écarté (quota ~5-10 Mo/origine, API synchrone bloquante, chaînes de caractères seulement, inadapté aux assets binaires du thème).
+
+### Thème copié dans chaque site
+
+Le thème complet (`themes/volks-typo/`) est copié dans le dépôt de chaque site à sa création (`createSite()` dans `app.js`, même écriture batch qu'une publication), plutôt que relu depuis les assets de l'app à chaque build — chaque site devient un vrai projet Zola autonome. Contrepartie assumée : les correctifs futurs du thème vendoré ne se propagent plus automatiquement aux sites déjà créés (pas de mécanisme de resynchronisation pour l'instant).
+
+Pour les sites créés avant cette fonctionnalité (ou n'ayant personnalisé qu'un seul gabarit) : `getSiteFiles()` (`site-builder.js`) fusionne toujours le thème vendoré de l'app *fichier par fichier* sous ce qui existe réellement dans le dépôt — jamais un tout-ou-rien — pour que lecture et build restent corrects même sur un dépôt partiellement aligné. L'écran "Réglages du site" propose une action explicite ("Installer le thème dans ce site") qui copie tout le thème d'un coup, purement pour rendre le dépôt autonome — jamais requis pour que le site fonctionne.
+
+L'onglet **Templates** (sidebar) liste tous les gabarits `.html` du thème (gabarits de page et includes partagés `macros/`/`partials/`), avec un éditeur de code ([CodeMirror](https://codemirror.net/), `editor-src/code-editor.js`) et la même preview live que l'éditeur de contenu — `buildPreviewSite()` (`site-builder.js`) accepte indifféremment un brouillon de page (`content/*.md`) ou de gabarit (`templates/*.html`), substitué dans les fichiers du dépôt avant le build Zola. Sauvegarder un gabarit écrit directement son chemin réel dans le dépôt (`templates/...`), sans notion d'override séparée.
 
 ### Aperçu en direct
 
-Pendant l'édition, un rebuild Zola tourne en arrière-plan (débounce ~1,8s après la dernière frappe) sur le contenu déjà publié + le brouillon en cours, non enregistré (`buildPreviewSite()` dans `site-builder.js`).
+Pendant l'édition (contenu ou gabarit), un rebuild Zola tourne en arrière-plan (débounce ~1,8s après la dernière frappe) sur le dépôt déjà publié + le brouillon en cours, non enregistré (`buildPreviewSite()` dans `site-builder.js`).
 Sa sortie (un site multi-pages avec de vrais liens relatifs entre pages/assets) est servie par un **service worker** (`sw.js`) qui intercepte les requêtes sous `/preview/<owner>/<repo>/...` et répond directement depuis une map en mémoire — pas de blob URL ni de `srcdoc` d'iframe, qui casseraient la navigation entre pages.
 `config.toml` reçoit un `base_url` différent pour ce build (`/preview/...` plutôt que l'URL réelle du site publié), sinon Zola génère nav/liens/assets en absolu vers un domaine de prod qui n'a pas encore ce contenu.
-Rien n'est publié sur Codeberg tant qu'on ne clique pas sur "Publier" — l'aperçu ne touche que la mémoire du navigateur.
+Rien n'est publié sur le fournisseur tant qu'on ne clique pas sur "Publier" — l'aperçu ne touche que la mémoire du navigateur.
 
 ### Inclusion des packages JS
 
 BlockNote (React + ProseMirror + Mantine) est trop imbriqué pour un `<script>`/CDN sans bundler (duplication de singletons ProseMirror).
-`zola-builder.js` importe aussi un package npm (`@bjorn3/browser_wasi_shim`), donc même traitement.
-`npm run build` (esbuild) produit deux bundles IIFE : `editor.bundle.js`/`.css` et `zola-builder.bundle.js`.
+`zola-builder.js` importe aussi un package npm (`@bjorn3/browser_wasi_shim`), donc même traitement — pareil pour l'éditeur de code de l'onglet Templates (CodeMirror 6, `editor-src/code-editor.js`).
+`npm run build` (esbuild) produit trois bundles IIFE : `editor.bundle.js`/`.css`, `zola-builder.bundle.js` et `code-editor.bundle.js`.
 Il génère ensuite `index.html` depuis `index.template.html` (le fichier à éditer, `index.html` est gitignore).
 Chaque script/style local reçoit un `?v=<hash du commit>`, pour éviter le cache périmé après déploiement.
 Le reste de l'app : scripts classiques, sans build.
@@ -179,7 +193,7 @@ Le reste de l'app : scripts classiques, sans build.
 
 Pour le futur système de plugins/thèmes (feuille de route, item 2), approche **hybride** retenue plutôt qu'un vrai split en deux outils.
 Le cœur (`app.js`, `api.js`, éditeur, orchestrateur de build) reste hébergé centralement sur stamperia.io, mis à jour pour tous les sites d'un coup.
-Thèmes et plugins sont vendorés/chargés depuis le repo de chaque site, en étendant le pattern déjà utilisé pour `themes/volks-typo/manifest.json`.
+**La partie thème de ce pattern est réalisée** (voir "Thème copié dans chaque site" plus haut : chaque dépôt de site a sa propre copie du thème) ; les plugins restent à construire en étendant le même principe.
 
 Pourquoi : updates cœur centralisées (vs vrai split où chaque site fige sa version à la création), repos de site plus légers, une seule surface de sécurité à auditer, réutilise un mécanisme déjà en place.
 Migrer plus tard vers un vrai split ("eject" = copier le cœur dans le repo une fois) resterait facile depuis l'hybride ; l'inverse serait coûteux une fois des sites divergés — d'où ce point de départ, à condition de traiter l'API cœur/plugin comme un contrat stable dès le début.

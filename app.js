@@ -33,8 +33,8 @@ applyThemeToggleIcon();
 // buildPreviewSite() dans site-builder.js. swReady résout une fois le worker actif,
 // avant quoi pointer un iframe vers /preview/... ferait une vraie requête réseau (404).
 let swReady = null;
-// { owner, repo, path, contentFiles, building, dirty, debounceTimer } de l'écran
-// d'édition ouvert — recréé à chaque openEditor(), jamais réutilisé entre deux pages.
+// { owner, repo, path, building, dirty, debounceTimer } de l'écran d'édition ouvert —
+// recréé à chaque openEditor(), jamais réutilisé entre deux pages.
 let previewState = null;
 
 function registerServiceWorker() {
@@ -78,6 +78,7 @@ function renderStatus(message, type = "info") {
 // façon via le garde previewState !== state dans triggerPreviewBuild()).
 function leaveEditor() {
   RichEditor.unmount();
+  CodeEditor.unmount();
   if (previewState) clearTimeout(previewState.debounceTimer);
   previewState = null;
 }
@@ -162,6 +163,14 @@ function editorHash(owner, name, path) {
   return `${siteHash(owner, name)}/edit/${encodeURIComponent(path)}`;
 }
 
+function templatesHash(owner, name) {
+  return `${siteHash(owner, name)}/templates`;
+}
+
+function templateEditorHash(owner, name, path) {
+  return `${templatesHash(owner, name)}/${encodeURIComponent(path)}`;
+}
+
 function settingsHash(owner, name) {
   return `${siteHash(owner, name)}/settings`;
 }
@@ -175,6 +184,12 @@ function parseHash(hash) {
   if (!owner || !repo) return { view: "dashboard" };
   if (segments[2] === "edit" && segments[3]) {
     return { view: "editor", owner, repo, path: decodeURIComponent(segments[3]) };
+  }
+  if (segments[2] === "templates" && segments[3]) {
+    return { view: "template-editor", owner, repo, path: decodeURIComponent(segments[3]) };
+  }
+  if (segments[2] === "templates") {
+    return { view: "templates", owner, repo };
   }
   if (segments[2] === "settings") {
     return { view: "settings", owner, repo };
@@ -203,6 +218,7 @@ function renderSidebar(route) {
   const items = [
     { key: "pages", label: "Pages", icon: ICONS.pages, href: siteHash(owner, repo) },
     { key: "posts", label: "Articles", icon: ICONS.posts, href: postsHash(owner, repo) },
+    { key: "templates", label: "Templates", icon: ICONS.templates, href: templatesHash(owner, repo) },
     { key: "settings", label: "Réglages", icon: ICONS.settings, href: settingsHash(owner, repo) },
   ];
   sidebarEl.hidden = false;
@@ -252,6 +268,10 @@ async function renderRoute() {
     await renderPosts(route.owner, route.repo);
   } else if (route.view === "settings") {
     await renderSiteSettings(route.owner, route.repo);
+  } else if (route.view === "templates") {
+    await renderTemplates(route.owner, route.repo);
+  } else if (route.view === "template-editor") {
+    await openTemplateEditor(route.owner, route.repo, route.path);
   } else {
     await openEditor(route.owner, route.repo, route.path);
   }
@@ -329,11 +349,15 @@ async function createSite() {
     await api.createBranch(owner, repo.name, "pages", repo.default_branch);
     await api.enablePublishing(owner, repo.name);
 
-    await api.saveFile(owner, repo.name, "content/_index.md", buildIndexStub(repo.name), {
-      message: "Site initial",
-    });
-    await api.saveFile(owner, repo.name, "content/blog/_index.md", buildBlogIndexStub(), {
-      message: "Site initial",
+    // Le thème complet est copié dans le repo du site dès sa création (plus de thème
+    // central partagé lu depuis les assets de l'app à chaque build, voir le plan "Refonte
+    // lecture repo") — un seul commit batch, comme la publication (api.publishFiles).
+    const themeFiles = await loadThemeFiles(CURRENT_THEME);
+    const encoder = new TextEncoder();
+    await api.publishFiles(owner, repo.name, "main", {
+      ...themeFiles,
+      "content/_index.md": encoder.encode(buildIndexStub(repo.name)),
+      "content/blog/_index.md": encoder.encode(buildBlogIndexStub()),
     });
 
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
@@ -419,6 +443,63 @@ async function renderPosts(owner, name) {
   await loadAndRenderList(owner, name, "post", "postsList", "postsListStatus", "Aucun article pour l'instant.");
 }
 
+// Liste les gabarits .html du thème du site (voir listSiteTemplatePaths dans
+// site-builder.js — toujours la liste complète, même sur un site pas encore aligné sur
+// le nouveau modèle "thème copié dans le repo", voir getSiteFiles). Pas de bouton
+// "Créer" : contrairement aux pages/articles, la liste des gabarits est fixée par le
+// thème, on ne fait qu'éditer ceux qui existent déjà.
+async function renderTemplates(owner, name) {
+  leaveEditor();
+  appEl.innerHTML = `
+    <div class="card">
+      <h2>Templates</h2>
+      <p style="color:var(--muted); font-size:14px;">
+        Code des gabarits du thème (HTML/Tera) — usage avancé, sans effet sur les autres
+        réglages du site.
+      </p>
+      <div id="templatesListStatus">${renderStatus("Chargement des templates…", "info")}</div>
+      <div id="templatesList"></div>
+    </div>
+  `;
+  try {
+    const paths = await listSiteTemplatePaths(owner, name);
+    document.getElementById("templatesListStatus").innerHTML = "";
+    document.getElementById("templatesList").innerHTML = renderTemplateList(owner, name, paths);
+  } catch (err) {
+    document.getElementById("templatesListStatus").innerHTML = renderStatus(err.message, "error");
+  }
+}
+
+// Deux groupes : gabarits de page (rendus pour une page précise) et includes partagés
+// (macros/, partials/ — réutilisés par plusieurs gabarits, donc une modification
+// impacte plusieurs pages à la fois, à distinguer visuellement pour ne pas surprendre).
+function renderTemplateList(owner, name, paths) {
+  if (!paths.length) return renderStatus("Aucun template trouvé.", "info");
+
+  const isShared = (p) => p.startsWith("templates/macros/") || p.startsWith("templates/partials/");
+  const renderGroup = (list) =>
+    list
+      .map(
+        (path) => `
+      <div class="repo-item">
+        <a href="${templateEditorHash(owner, name, path)}">${path.replace(/^templates\//, "")}</a>
+      </div>`
+      )
+      .join("");
+
+  const pageTemplates = paths.filter((p) => !isShared(p));
+  const sharedTemplates = paths.filter(isShared);
+
+  return `
+    ${renderGroup(pageTemplates)}
+    ${
+      sharedTemplates.length
+        ? `<h3 style="font-size:14px; color:var(--muted); margin:16px 0 4px;">Includes partagés (macros, partials)</h3>${renderGroup(sharedTemplates)}`
+        : ""
+    }
+  `;
+}
+
 // kind: "page" (standalone, content/) ou "post" (article de blog, content/blog/).
 function addPage(kind) {
   const inputId = kind === "post" ? "newPostTitle" : "newPageTitle";
@@ -454,6 +535,10 @@ async function renderSiteSettings(owner, name) {
       </div>
     </div>
     <div class="card">
+      <h2>Thème</h2>
+      <div id="themeStatus">${renderStatus("Vérification…", "info")}</div>
+    </div>
+    <div class="card">
       <h2>Dépôt</h2>
       <p style="color:var(--muted); font-size:14px;">
         Ce site est stocké sur ${currentProvider.label}.
@@ -471,6 +556,40 @@ async function renderSiteSettings(owner, name) {
     document.getElementById("blogTitle").value = title;
   } catch (err) {
     document.getElementById("settingsLoadStatus").innerHTML = renderStatus(err.message, "error");
+  }
+
+  await refreshThemeStatus(owner, name);
+}
+
+// Sites créés avant que le thème complet ne soit copié dans chaque dépôt (voir
+// createSite() dans app.js et getSiteFiles() dans site-builder.js) : propose une
+// installation explicite plutôt que de la faire d'office.
+async function refreshThemeStatus(owner, name) {
+  const statusEl = document.getElementById("themeStatus");
+  try {
+    const hasTheme = await siteHasThemeInstalled(owner, name);
+    statusEl.innerHTML = hasTheme
+      ? renderStatus("Thème installé dans ce site ✓", "success")
+      : `
+        ${renderStatus(
+          "Ce site a été créé avant que le thème ne soit copié dans chaque dépôt — il utilise encore la version partagée de l'app.",
+          "info"
+        )}
+        <button onclick="installTheme()">Installer le thème dans ce site</button>
+      `;
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
+  }
+}
+
+async function installTheme() {
+  const statusEl = document.getElementById("themeStatus");
+  statusEl.innerHTML = renderStatus("Installation du thème…", "info");
+  try {
+    await installThemeInSite(currentRepo.owner, currentRepo.name);
+    statusEl.innerHTML = renderStatus("Thème installé dans ce site ✓", "success");
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
   }
 }
 
@@ -521,20 +640,10 @@ async function openEditor(owner, name, path) {
     }
   }
 
-  // Contenu des autres pages, chargé une seule fois par passage sur l'écran d'édition —
-  // réutilisé par chaque rebuild d'aperçu (pas de nouvel appel réseau par frappe). Si ça
-  // échoue, l'édition reste possible ; seul l'aperçu sera indisponible.
-  let contentFiles = {};
-  try {
-    contentFiles = await fetchContentFiles(owner, name);
-  } catch (err) {
-    contentFiles = null;
-  }
-
-  await renderEditor(path, sha, content, contentFiles);
+  await renderEditor(path, sha, content);
 }
 
-async function renderEditor(path, fileSha, fileContent, contentFiles) {
+async function renderEditor(path, fileSha, fileContent) {
   const backHash = siteHash(currentRepo.owner, currentRepo.name);
   appEl.classList.add("editor-split");
   appEl.innerHTML = `
@@ -550,25 +659,114 @@ async function renderEditor(path, fileSha, fileContent, contentFiles) {
       <div id="editorMount" style="margin-bottom:16px; min-height:220px;"></div>
     </div>
     <div class="card preview-pane">
-      <div id="previewStatus">${contentFiles ? "" : renderStatus("Aperçu indisponible.", "error")}</div>
+      <div id="previewStatus"></div>
       <iframe id="previewFrame" title="Aperçu du site"></iframe>
     </div>
   `;
   renderEditor.currentSha = fileSha;
   renderEditor.currentPath = path;
 
-  previewState = contentFiles && {
+  // Le contenu du dépôt (thème + pages) vient du cache local (getRepoFiles, voir
+  // repo-cache.js) — plus besoin de le pré-charger ici : buildPreviewSite() s'en charge
+  // à chaque rebuild d'aperçu, et l'échec éventuel (ex. hors ligne) remonte via le
+  // catch() de triggerPreviewBuild() plutôt que d'être vérifié en amont.
+  // getDraft/previewTarget : voir renderTemplateEditor() pour l'équivalent côté édition de
+  // gabarit — même triggerPreviewBuild() pour les deux, seul ce qui varie entre contenu et
+  // template est capturé ici.
+  previewState = {
     owner: currentRepo.owner,
     repo: currentRepo.name,
     path,
-    contentFiles,
+    previewTarget: pageUrl(path),
+    getDraft: () => RichEditor.getMarkdown(),
     building: false,
     dirty: false,
     debounceTimer: null,
   };
 
   await RichEditor.mount("editorMount", fileContent, onEditorContentChange);
-  if (previewState) triggerPreviewBuild();
+  triggerPreviewBuild();
+}
+
+// Charge le code d'un gabarit : l'override déjà enregistré dans le repo du site s'il
+// existe, sinon le défaut du thème vendoré (voir getSiteFiles dans site-builder.js pour
+// la même logique côté build — ici on a besoin du sha du fichier réel du repo, pas
+// seulement de son contenu fusionné, donc un accès direct plutôt que getSiteFiles()).
+async function openTemplateEditor(owner, name, path) {
+  leaveEditor();
+  appEl.innerHTML = renderStatus("Chargement…", "info");
+
+  let sha = null;
+  let code = "";
+  try {
+    const file = await api.getFile(owner, name, path, "main", { silent404: true });
+    sha = file.sha;
+    code = decodeBase64Utf8(file.content);
+  } catch (err) {
+    if (err.status !== 404) {
+      const backHash = templatesHash(owner, name);
+      appEl.innerHTML = `
+        <div class="card">
+          <button class="secondary" onclick='window.location.hash = ${JSON.stringify(backHash)}'>&larr; Retour aux templates</button>
+          ${renderStatus(err.message, "error")}
+        </div>
+      `;
+      return;
+    }
+  }
+
+  if (sha === null) {
+    try {
+      const themeFiles = await loadThemeFiles(CURRENT_THEME);
+      const bytes = themeFiles[path];
+      if (bytes) code = new TextDecoder().decode(bytes);
+    } catch {
+      // Thème vendoré indisponible (ex. hors ligne) : édition depuis un fichier vide
+      // plutôt que de bloquer l'écran — l'utilisateur·rice écrit son propre contenu.
+    }
+  }
+
+  await renderTemplateEditor(path, sha, code);
+}
+
+async function renderTemplateEditor(path, fileSha, code) {
+  const backHash = templatesHash(currentRepo.owner, currentRepo.name);
+  appEl.classList.add("editor-split");
+  appEl.innerHTML = `
+    <div class="card editor-pane">
+      <div class="editor-toolbar">
+        <button class="secondary" onclick='window.location.hash = ${JSON.stringify(backHash)}'>&larr; Retour aux templates</button>
+        <button onclick="saveTemplateFile()">Publier</button>
+      </div>
+      <div id="editorStatus"></div>
+      <h2>${path}</h2>
+
+      <label>Code du gabarit</label>
+      <div id="templateEditorMount" style="margin-bottom:16px; min-height:220px;"></div>
+    </div>
+    <div class="card preview-pane">
+      <div id="previewStatus"></div>
+      <iframe id="previewFrame" title="Aperçu du site"></iframe>
+    </div>
+  `;
+  renderTemplateEditor.currentSha = fileSha;
+  renderTemplateEditor.currentPath = path;
+
+  // previewTarget "/" (accueil), pas d'URL propre à un gabarit — le reste du mini-site
+  // reste navigable depuis l'iframe (voir previewUrl()).
+  previewState = {
+    owner: currentRepo.owner,
+    repo: currentRepo.name,
+    path,
+    previewTarget: "/",
+    getDraft: () => CodeEditor.getCode(),
+    building: false,
+    dirty: false,
+    debounceTimer: null,
+  };
+
+  await CodeEditor.mount("templateEditorMount", code, onEditorContentChange);
+  triggerPreviewBuild();
 }
 
 // Débounce : une frappe redémarre le délai plutôt que de builder à chaque caractère —
@@ -601,13 +799,12 @@ async function triggerPreviewBuild() {
   if (statusEl) statusEl.innerHTML = renderStatus("Génération de l'aperçu…", "info");
 
   try {
-    const draftMarkdown = await RichEditor.getMarkdown();
+    const draft = await state.getDraft();
     const { files } = await buildPreviewSite(
       state.owner,
       state.repo,
       state.path,
-      draftMarkdown,
-      state.contentFiles,
+      draft,
       previewBaseUrl(state.owner, state.repo)
     );
     if (previewState !== state) return; // écran quitté entre-temps
@@ -635,9 +832,13 @@ async function triggerPreviewBuild() {
 // Relatif à l'URL de la page (pas "/preview/..." en dur) : l'appli peut être déployée
 // sous un sous-chemin (voir config.js), et le scope du service worker ne couvre que son
 // propre répertoire — une URL absolue à la racine du domaine échapperait à ce scope et
-// ne serait jamais interceptée par sw.js (vraie requête réseau, 404).
-function previewUrl(owner, repo, path) {
-  const relative = `preview/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}${pageUrl(path)}`;
+// ne serait jamais interceptée par sw.js (vraie requête réseau, 404). `target` : URL de
+// page relative au site buildé (ex. "/a-propos/", "/" — voir previewState.previewTarget),
+// pas un chemin de fichier source — un gabarit n'a pas d'URL propre, voir
+// renderTemplateEditor() qui pointe toujours sur "/" (le reste du mini-site reste
+// navigable depuis l'iframe, tous les liens internes de l'aperçu fonctionnent).
+function previewUrl(owner, repo, target) {
+  const relative = `preview/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}${target}`;
   return new URL(relative, document.baseURI).href;
 }
 
@@ -653,7 +854,7 @@ function previewBaseUrl(owner, repo) {
 function reloadPreviewFrame(state) {
   const frame = document.getElementById("previewFrame");
   if (!frame) return;
-  const target = previewUrl(state.owner, state.repo, state.path);
+  const target = previewUrl(state.owner, state.repo, state.previewTarget);
   if (frame.src === target) {
     frame.contentWindow.location.reload();
   } else {
@@ -696,6 +897,46 @@ async function saveFile() {
     const message =
       renderEditor.currentSha && api.isConflict(err)
         ? "Cette page a été modifiée entre-temps ailleurs — retourne à la liste des pages et rouvre-la avant de publier, pour ne pas écraser ce changement."
+        : err.message;
+    statusEl.innerHTML = renderStatus(message, "error");
+  }
+}
+
+// Miroir de saveFile() pour un gabarit : écrit directement le chemin réel dans le repo
+// (templates/x.html) — plus de notion d'override séparé du défaut, voir getSiteFiles()
+// dans site-builder.js (le fichier écrit ici prend simplement le pas sur le défaut du
+// thème vendoré pour ce seul chemin, à la prochaine lecture).
+async function saveTemplateFile() {
+  const path = renderTemplateEditor.currentPath;
+  const code = CodeEditor.getCode();
+  const statusEl = document.getElementById("editorStatus");
+  statusEl.innerHTML = renderStatus("Enregistrement…", "info");
+
+  let codeSaved = false;
+  try {
+    const result = await api.saveFile(currentRepo.owner, currentRepo.name, path, code, {
+      sha: renderTemplateEditor.currentSha,
+    });
+    renderTemplateEditor.currentSha = result.content.sha;
+    codeSaved = true;
+
+    statusEl.innerHTML = renderStatus("Génération du site…", "info");
+    const { warning } = await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
+
+    statusEl.innerHTML = warning
+      ? renderStatus(warning, "error")
+      : renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
+  } catch (err) {
+    if (codeSaved) {
+      statusEl.innerHTML = renderStatus(
+        `Ton template est enregistré, mais la republication du site a échoué (${err.message}). Réessaie de publier.`,
+        "error"
+      );
+      return;
+    }
+    const message =
+      renderTemplateEditor.currentSha && api.isConflict(err)
+        ? "Ce template a été modifié entre-temps ailleurs — retourne à la liste des templates et rouvre-le avant de publier, pour ne pas écraser ce changement."
         : err.message;
     statusEl.innerHTML = renderStatus(message, "error");
   }

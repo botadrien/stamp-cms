@@ -15,6 +15,18 @@
 //   branche) — voir le commentaire sur GitHubApi.publishFiles ci-dessous.
 // - enablePublishing() : pas de webhook, un appel dédié à l'API Pages.
 // - pagesUrl()/repoUrl() : formes d'URL propres à GitHub.
+
+// Décode le base64 renvoyé par getBlob() en bytes bruts (contrairement à
+// decodeBase64Utf8 dans site-builder.js, qui suppose du texte UTF-8) — utilisé pour les
+// fichiers binaires (polices, images) que fetchRepoArchive() ne peut pas obtenir via
+// GraphQL (voir ce commentaire plus bas).
+function base64ToBytes(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 class GitHubApi {
   static providerId = "github";
   static providerLabel = "GitHub";
@@ -102,9 +114,9 @@ class GitHubApi {
   }
 
   // Arbre complet d'une branche en un seul appel (chemin, type, sha, taille de chaque
-  // entrée) — remplace le parcours dossier par dossier de walkContentFiles(). `truncated`
-  // dans la réponse signale un dépôt trop gros pour tenir dans une seule page ; à vérifier
-  // par l'appelant.
+  // entrée) — utilisé par fetchRepoArchive() (liste des chemins à batcher en GraphQL) et
+  // publishFiles() (distinction create/update par chemin). `truncated` dans la réponse
+  // signale un dépôt trop gros pour tenir dans une seule page ; à vérifier par l'appelant.
   listTree(owner, repo, ref) {
     return this._request(`/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
   }
@@ -113,6 +125,101 @@ class GitHubApi {
   // passer par un chemin — utile une fois le sha connu via listTree()).
   getBlob(owner, repo, sha) {
     return this._request(`/repos/${owner}/${repo}/git/blobs/${sha}`);
+  }
+
+  // Sha du commit HEAD d'une branche — vérification légère utilisée par repo-cache.js
+  // pour savoir si la copie locale (IndexedDB) est encore à jour, sans retélécharger
+  // tout le dépôt. Alias public de _headCommitSha (déjà utilisée en interne par
+  // publishFiles) pour rester cohérent avec la même méthode côté ForgejoApi/GitLabApi.
+  getHeadSha(owner, repo, branch) {
+    return this._headCommitSha(owner, repo, branch);
+  }
+
+  // Archive complète d'une branche en un seul aller-retour "logique" (thème + contenu,
+  // voir docs/plan-lecture-content-batch.md) — mais PAS via l'endpoint archive/tarball :
+  // celui-ci redirige vers codeload.github.com, dont le CORS n'autorise que
+  // render.githubusercontent.com (vérifié en direct), bloqué depuis notre origine, sans
+  // backend à nous pour proxifier. Alternative retenue : listTree() (déjà 1 appel) puis
+  // UNE requête GraphQL avec un alias par fichier (`object(expression: "ref:path")`),
+  // CORS ouvert vérifié sur api.github.com/graphql. Limite du type Blob de l'API GraphQL
+  // GitHub : `text` vaut `null` pour un blob binaire (pas de champ contenu en base64) —
+  // les fichiers marqués `isBinary` (polices, images du thème) retombent donc sur
+  // getBlob() (REST, base64) un par un, en plus de l'unique requête GraphQL groupée pour
+  // tout le reste (Markdown, HTML, CSS, JSON...).
+  async fetchRepoArchive(owner, repo, ref) {
+    const tree = await this.listTree(owner, repo, ref);
+    if (tree.truncated) {
+      throw new Error("Le dépôt est trop volumineux pour être parcouru en un seul appel.");
+    }
+    const entries = tree.tree.filter((entry) => entry.type === "blob");
+    if (!entries.length) return {};
+
+    const { files, binaryPaths } = await this._fetchBlobsViaGraphQL(owner, repo, ref, entries);
+    await Promise.all(
+      binaryPaths.map(async (path) => {
+        const entry = entries.find((e) => e.path === path);
+        const blob = await this.getBlob(owner, repo, entry.sha);
+        files[path] = base64ToBytes(blob.content);
+      })
+    );
+    return files;
+  }
+
+  // Limite de complexité de requête GraphQL GitHub : on chunk plutôt que d'envoyer un
+  // alias par fichier d'un dépôt arbitrairement gros en une seule requête.
+  async _fetchBlobsViaGraphQL(owner, repo, ref, entries) {
+    const CHUNK_SIZE = 200;
+    const files = {};
+    const binaryPaths = [];
+
+    for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+      const chunk = entries.slice(i, i + CHUNK_SIZE);
+      const fields = chunk
+        .map(
+          (entry, idx) =>
+            `f${idx}: object(expression: ${JSON.stringify(`${ref}:${entry.path}`)}) { ... on Blob { text isBinary } }`
+        )
+        .join("\n");
+      const query = `query { repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(repo)}) { ${fields} } }`;
+
+      const data = await this._graphqlRequest(query);
+      chunk.forEach((entry, idx) => {
+        const blob = data.repository[`f${idx}`];
+        if (!blob || blob.isBinary || blob.text === null) {
+          binaryPaths.push(entry.path);
+        } else {
+          files[entry.path] = new TextEncoder().encode(blob.text);
+        }
+      });
+    }
+
+    return { files, binaryPaths };
+  }
+
+  async _graphqlRequest(query) {
+    let response;
+    try {
+      response = await fetch(`${this.base}/graphql`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+    } catch (networkErr) {
+      console.error("Network error sur /graphql:", networkErr);
+      throw new Error(`Impossible de contacter ${GitHubApi.providerLabel} — vérifie ta connexion et réessaie.`);
+    }
+    if (!response.ok) {
+      console.error(`API error (${response.status}) sur /graphql:`, await response.text());
+      const err = new Error(friendlyApiError(response.status, GitHubApi.providerLabel));
+      err.status = response.status;
+      throw err;
+    }
+    const body = await response.json();
+    if (body.errors) {
+      console.error("GraphQL errors sur /graphql:", body.errors);
+      throw new Error(friendlyApiError(500, GitHubApi.providerLabel));
+    }
+    return body.data;
   }
 
   // Écrit plusieurs fichiers en un seul commit. Contrairement à Forgejo, l'API "contents"

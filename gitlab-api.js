@@ -227,6 +227,31 @@ class GitLabApi {
     return this._request(`/projects/${this.projectId(owner, repo)}/repository/blobs/${sha}`);
   }
 
+  // Sha du commit HEAD d'une branche — vérification légère utilisée par repo-cache.js
+  // pour savoir si la copie locale (IndexedDB) est encore à jour, sans retélécharger
+  // tout le dépôt.
+  async getHeadSha(owner, repo, branch) {
+    const info = await this._request(`/projects/${this.projectId(owner, repo)}/repository/branches/${encodeURIComponent(branch)}`);
+    return info.commit.id;
+  }
+
+  // Archive complète d'une branche en un seul appel (thème + contenu, voir
+  // docs/plan-lecture-content-batch.md et tar-utils.js) — remplace listTree + N×getBlob,
+  // et notamment la pagination interne de listTree() ci-dessus. CORS ouvert vérifié en
+  // direct sur cet endpoint. Passe par _fetch (pas _request) : la réponse est un binaire
+  // (tar.gz), pas du JSON.
+  async fetchRepoArchive(owner, repo, ref) {
+    const params = new URLSearchParams({ sha: ref });
+    // cache: "no-store" — voir le commentaire équivalent sur ForgejoApi.fetchRepoArchive
+    // (api.js) : cette URL ne varie pas avec le commit, un cache HTTP navigateur non
+    // désactivé pourrait resservir une archive périmée après une écriture rapprochée.
+    const response = await this._fetch(
+      `/projects/${this.projectId(owner, repo)}/repository/archive.tar.gz?${params}`,
+      { cache: "no-store" }
+    );
+    return parseTarGz(await response.arrayBuffer());
+  }
+
   // Écrit plusieurs fichiers en un seul commit via l'API "Commits" de GitLab (`actions`) —
   // équivalent du endpoint batch "Modify multiple files" de Forgejo. Le chemin déjà présent
   // sur la branche (via listTree) distingue create/update, comme pour Forgejo.

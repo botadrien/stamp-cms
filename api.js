@@ -120,9 +120,9 @@ class ForgejoApi {
   }
 
   // Arbre complet d'une branche en un seul appel (chemin, type, sha, taille de chaque
-  // entrée) — remplace le parcours dossier par dossier de walkContentFiles(). `truncated`
-  // dans la réponse signale un dépôt trop gros pour tenir dans une seule page ; à vérifier
-  // par l'appelant.
+  // entrée) — plus utilisé pour la lecture de contenu (voir fetchRepoArchive), gardé pour
+  // publishFiles() (distinction create/update par chemin). `truncated` dans la réponse
+  // signale un dépôt trop gros pour tenir dans une seule page ; à vérifier par l'appelant.
   listTree(owner, repo, ref) {
     return this._request(`/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
   }
@@ -131,6 +131,43 @@ class ForgejoApi {
   // passer par un chemin — utile une fois le sha connu via listTree()).
   getBlob(owner, repo, sha) {
     return this._request(`/repos/${owner}/${repo}/git/blobs/${sha}`);
+  }
+
+  // Sha du commit HEAD d'une branche — vérification légère utilisée par repo-cache.js
+  // pour savoir si la copie locale (IndexedDB) est encore à jour, sans retélécharger
+  // tout le dépôt.
+  async getHeadSha(owner, repo, branch) {
+    const info = await this._request(`/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`);
+    return info.commit.id;
+  }
+
+  // Archive complète d'une branche en un seul appel (thème + contenu, voir
+  // docs/plan-lecture-content-batch.md et tar-utils.js) — remplace listTree + N×getBlob.
+  // CORS ouvert vérifié en direct sur cet endpoint (contrairement au tarball GitHub,
+  // voir GitHubApi.fetchRepoArchive). Pas de passage par _request : la réponse est un
+  // binaire (tar.gz), pas du JSON. `cache: "no-store"` : cet endpoint renvoie
+  // `Cache-Control: private, max-age=300` sur une URL qui ne varie pas avec le commit
+  // (toujours .../archive/main.tar.gz) — sans ça, le cache HTTP du navigateur sert une
+  // archive périmée après une deuxième écriture rapprochée (observé en e2e : une page
+  // publiée juste après une autre disparaissait de la liste, silencieusement).
+  async fetchRepoArchive(owner, repo, ref) {
+    let response;
+    try {
+      response = await fetch(`${this.base}/repos/${owner}/${repo}/archive/${encodeURIComponent(ref)}.tar.gz`, {
+        headers: { Authorization: `Bearer ${this.token}` },
+        cache: "no-store",
+      });
+    } catch (networkErr) {
+      console.error(`Network error sur l'archive de ${owner}/${repo}:`, networkErr);
+      throw new Error(`Impossible de contacter ${ForgejoApi.providerLabel} — vérifie ta connexion et réessaie.`);
+    }
+    if (!response.ok) {
+      console.error(`API error (${response.status}) sur l'archive de ${owner}/${repo}`);
+      const err = new Error(friendlyApiError(response.status, ForgejoApi.providerLabel));
+      err.status = response.status;
+      throw err;
+    }
+    return parseTarGz(await response.arrayBuffer());
   }
 
   // Écrit plusieurs fichiers en un seul commit — l'API Git Data de Forgejo est en
