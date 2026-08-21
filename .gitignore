@@ -1,8 +1,8 @@
 .DS_Store
 tmp
 node_modules
-e2e/.seed.json
-e2e/.seed-gitlab.json
+tests/.seed.json
+tests/.seed-gitlab.json
 test-results
 playwright-report
 ssg-builder.bundle.js
@@ -10,4 +10,4 @@ puck-layout-editor.bundle.js
 puck-layout-editor.bundle.css
 puck-content-editor.bundle.js
 puck-content-editor.bundle.css
-/index.html
+/app/index.html

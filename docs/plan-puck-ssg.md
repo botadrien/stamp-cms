@@ -83,7 +83,7 @@ aujourd'hui) :
 }
 ```
 
-`collections` reprend exactement le split déjà fait dans `app.js`
+`collections` reprend exactement le split déjà fait dans `app/app.js`
 (`listContentPages`/`renderPageGroup` : pages standalone vs `content/blog/*.md`) —
 pas de nouveau découpage à inventer.
 
@@ -135,7 +135,7 @@ ce nouveau pipeline.
 > Config restreinte à un composant `RichText`) et stocké en JSON Puck
 > (`content/<slug>.puck.json` / `content/blog/<slug>.puck.json`), injecté au rendu dans
 > le slot `ContentSlot` du gabarit partagé de son type de route
-> (`ssg-src/template-merge.js`) — voir README "Édition de contenu" pour l'architecture
+> (`app/puck/template-merge.js`) — voir README "Édition de contenu" pour l'architecture
 > retenue. Choix assumé : simplifier vers un seul système d'édition plutôt que deux,
 > au prix du Markdown comme format de stockage lisible en diff Git.
 
@@ -236,9 +236,9 @@ forme de contexte/resolver et la fusion devient ingérable.
 - dépendance ajoutée au `package.json` : **`@puckeditor/core`** (`^0.23.0`) — pas
   `@measured/puck`, package déprécié, renommé courant 2025 ; toute doc/exemple Puck
   trouvé en ligne sous l'ancien nom reste valable niveau API, juste changer l'import.
-- squelette de dossiers créé : `ssg-src/`, `ssg-src/components/`, `ssg-src/fields/`,
-  `ssg-src/feeds/`.
-- `ssg-src/types.js` : contrat figé en JSDoc typedefs (pas de TypeScript dans ce
+- squelette de dossiers créé : `app/puck/`, `app/puck/components/`, `app/puck/fields/`,
+  `app/ssg/feeds/`.
+- `app/ssg/types.js` : contrat figé en JSDoc typedefs (pas de TypeScript dans ce
   projet) — `Context`, `Collections`, `ContentItem`, `BindDescriptor` (lookup et
   collection), signature de `resolveProps`. Toutes les tracks importent ces types
   plutôt que d'en redéfinir des variantes incompatibles.
@@ -254,11 +254,11 @@ forme de contexte/resolver et la fusion devient ingérable.
 
 | Track | Tâches couvertes | Dépend de (contrat seulement) | Fichiers possédés |
 |---|---|---|---|
-| **A — Données** | 1 (contexte) + 4 (loader Markdown) | rien | `ssg-src/context.js`, `ssg-src/content-loader.js` |
-| **B — Bindings** | 2 (resolver + champ binding) | signature du resolver | `ssg-src/resolver.js`, `ssg-src/fields/binding-field.jsx` |
-| **C — Repeater** | 3 (composant Repeater) | contrat de B (peut stubber le resolver) + contrat de collection de A | `ssg-src/components/repeater.jsx` |
-| **D — Palette** | 8 (composants) + 9 (props de style) | contrat du champ binding de B (peut stubber en attendant) | `ssg-src/components/*.jsx` (un fichier par composant) |
-| **E — Flux** | 6 (RSS) + 7 (sitemap) | contrat de collection de A | `ssg-src/feeds/rss.js`, `ssg-src/feeds/sitemap.js` |
+| **A — Données** | 1 (contexte) + 4 (loader Markdown) | rien | `app/ssg/context.js`, `app/ssg/content-loader.js` |
+| **B — Bindings** | 2 (resolver + champ binding) | signature du resolver | `app/puck/resolver.js`, `app/puck/fields/binding-field.jsx` |
+| **C — Repeater** | 3 (composant Repeater) | contrat de B (peut stubber le resolver) + contrat de collection de A | `app/puck/components/repeater.jsx` |
+| **D — Palette** | 8 (composants) + 9 (props de style) | contrat du champ binding de B (peut stubber en attendant) | `app/puck/components/*.jsx` (un fichier par composant) |
+| **E — Flux** | 6 (RSS) + 7 (sitemap) | contrat de collection de A | `app/ssg/feeds/rss.js`, `app/ssg/feeds/sitemap.js` |
 
 Règle anti-conflit de merge : chaque composant/module vit dans son propre fichier ;
 aucune track ne touche un fichier "registre" partagé (ex. l'index qui liste tous les
@@ -272,10 +272,10 @@ contrat — elles ne peuvent démarrer qu'après la fusion des worktrees parall�
 
 **✅ Fait** :
 
-- `ssg-src/registry.jsx` : le seul fichier "registre" du projet (voir la règle
+- `app/puck/registry.jsx` : le seul fichier "registre" du projet (voir la règle
   anti-conflit ci-dessus), agrège tous les composants Puck (palette de Track D +
   Repeater de Track C) en une Config Puck.
-- `ssg-src/ssg-context.js` : `SsgContext`/`useSsgContext`, extraits de
+- `app/puck/ssg-context.js` : `SsgContext`/`useSsgContext`, extraits de
   `repeater.jsx` (Track C) vers un module partagé — plusieurs composants de la
   palette en ont besoin, pas seulement le Repeater. `repeater.jsx` réexporte
   depuis ce module, rien de cassé côté API déjà écrite.
@@ -286,13 +286,13 @@ contrat — elles ne peuvent démarrer qu'après la fusion des worktrees parall�
   ("stub en attendant Track C"). Résolu en leur faisant lire le Context via
   `useSsgContext()` et résoudre leurs propres props, exactement le pattern déjà
   utilisé par `Repeater` pour sa prop `source`.
-- `ssg-src/components/article-teaser.jsx` (nouveau, écrit en Phase 2 — pas
+- `app/puck/components/article-teaser.jsx` (nouveau, écrit en Phase 2 — pas
   attribué à Track D) : brique minimale pensée pour vivre dans le slot d'un
   Repeater, chaque champ bindé sur l'item courant (`item.title`, `item.date`,
   `item.excerpt`, `item.url`). Nécessaire car la palette de Track D ne contenait
   encore aucun composant bindable au niveau item avant celui-ci — sans lui,
   impossible de démontrer "Repeater + bindings" bout en bout pour la tâche 10.
-- `ssg-src/renderer.jsx` (tâche 5) : parcourt les routes (accueil, pages
+- `app/ssg/renderer.jsx` (tâche 5) : parcourt les routes (accueil, pages
   standalone, index du blog, articles), construit le Context de chacune via
   `buildContext()`, rend chaque gabarit Puck avec `<Render>` +
   `renderToStaticMarkup` enveloppé dans `<SsgContext.Provider>`, génère
@@ -302,7 +302,7 @@ contrat — elles ne peuvent démarrer qu'après la fusion des worktrees parall�
   coup : seul le Context racine est fourni globalement, chaque composant
   bindable résout ses propres props au moment du rendu (sinon les bindings
   `item.*` du slot d'un Repeater se résoudraient avant que celui-ci n'ait
-  injecté `item`). `site-builder.js`/`app.js` ne sont pas encore branchés
+  injecté `item`). `app/site/site-builder.js`/`app/app.js` ne sont pas encore branchés
   dessus — seul le renderer lui-même est construit et vérifié ici.
 - **Point de contrôle prototype (tâche 10)** : `scripts/ssg-prototype-preview.mjs`
   construit un site fixture (front matter + Markdown, une page + trois articles
@@ -324,10 +324,10 @@ contrat — elles ne peuvent démarrer qu'après la fusion des worktrees parall�
 
 Construire le modèle de contexte et le chargeur Markdown/front matter.
 Contexte du projet : `content/*.md` (pages) et `content/blog/*.md` (articles) sont
-déjà lus et groupés côté app existante (`app.js` : `listContentPages`/
+déjà lus et groupés côté app existante (`app/app.js` : `listContentPages`/
 `renderPageGroup`) — reprendre exactement ce même découpage plutôt qu'en inventer un
-nouveau. Livrable : `ssg-src/context.js` (construit l'objet `{ site, page?, section?,
-collections }`) et `ssg-src/content-loader.js` (parse front matter + corps en JS,
+nouveau. Livrable : `app/ssg/context.js` (construit l'objet `{ site, page?, section?,
+collections }`) et `app/ssg/content-loader.js` (parse front matter + corps en JS,
 ex. via `remark`/`gray-matter`, sans dépendance WASM). Ne pas toucher aux fichiers
 d'autres tracks.
 
@@ -339,7 +339,7 @@ remplace tout noeud `{ $bind: "chemin.vers.valeur" }` par sa valeur trouvée dan
 `context` (lookup simple), et tout noeud `{ $bind: "collection", from, sortBy,
 order, limit }` par le tableau résultant de la requête sur `context.collections`.
 Les littéraux (chaînes, nombres, tableaux sans `$bind`) traversent inchangés. Fournir
-aussi un type de champ Puck (`ssg-src/fields/binding-field.jsx`) qui affiche un
+aussi un type de champ Puck (`app/puck/fields/binding-field.jsx`) qui affiche un
 sélecteur de chemin plutôt qu'un texte libre. Cette track n'a besoin que de la forme
 du contexte en contrat (voir Phase 0), pas de son implémentation réelle — tester
 avec un objet de contexte factice.
@@ -358,7 +358,7 @@ slots (`slot` field type) pour l'API exacte de composition.
 
 Construire la bibliothèque de composants Puck de base : hero, grille de
 fonctionnalités, CTA, carte d'article, nav, footer. Chaque composant est un fichier
-séparé sous `ssg-src/components/`, exportant sa config Puck (`fields`, `render`).
+séparé sous `app/puck/components/`, exportant sa config Puck (`fields`, `render`).
 Les props de style (couleur, espacement, typographie) émettent du style inline ou
 des custom properties CSS — pas de pipeline Sass. Les composants statiques (hero,
 CTA, grille) n'ont besoin de rien d'autre ; les composants qui listent des éléments
@@ -368,8 +368,8 @@ tous les composants — ce sera fait en phase 2.
 
 #### Brief — Track E (Flux RSS/sitemap)
 
-Construire un générateur RSS (`ssg-src/feeds/rss.js`) et un générateur de sitemap
-(`ssg-src/feeds/sitemap.js`), tous deux en JS pur produisant du XML à partir de
+Construire un générateur RSS (`app/ssg/feeds/rss.js`) et un générateur de sitemap
+(`app/ssg/feeds/sitemap.js`), tous deux en JS pur produisant du XML à partir de
 `context.collections` — remplace ce que Zola faisait via `generate_feed = true` et sa
 config de sitemap intégrée. N'a besoin que de la forme de `collections` fixée en
 Phase 0 (tableau d'objets `{ title, slug, url, date, excerpt, ... }` par groupe de
@@ -380,5 +380,5 @@ contenu), pas du reste du contexte.
 Pas de suite automatisée dédiée pour l'instant. Le point de contrôle prototype (tâche
 10) sert de première vérification de bout en bout : bindings + collections + slot API
 de Puck coopérant sur un vrai cas d'usage (page d'index de blog). Les tests e2e
-existants (`e2e/`) couvrent le flow Zola actuel et devront être adaptés une fois le
+existants (`tests/`) couvrent le flow Zola actuel et devront être adaptés une fois le
 renderer Puck remplacé — pas avant que le point de contrôle prototype soit validé.

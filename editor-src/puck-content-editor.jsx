@@ -1,4 +1,4 @@
-// Bundle IIFE pour app.js (script classique, sans import) — monte l'éditeur de contenu
+// Bundle IIFE pour app/app.js (script classique, sans import) — monte l'éditeur de contenu
 // Puck (@puckeditor/core) comme global `PuckContentEditor`, même principe que
 // puck-layout-editor.jsx (PuckLayoutEditor). Remplace l'ancien editor.jsx (BlockNote,
 // window.RichEditor).
@@ -6,22 +6,22 @@
 // Contrairement à l'éditeur de mise en page (config complète, tous les composants de la
 // palette), cet éditeur utilise une Config Puck restreinte (voir contentPuckConfig
 // ci-dessous) : seuls des blocs de contenu (RichText + Heading/Callout/Quote/Divider/
-// CodeBlock/Accordion/Space, voir ssg-src/components/) y sont enregistrés, donc il est structurellement
+// CodeBlock/Accordion/Space, voir app/puck/components/) y sont enregistrés, donc il est structurellement
 // impossible d'y glisser un Nav/Hero/Footer — le contenu d'un article/d'une page reste un
 // corps de texte, jamais sa propre mise en page (nav/hero/footer restent définis une fois
 // par type de route, voir templates/page.puck.json / templates/article.puck.json). Ces
-// blocs sont aussi enregistrés dans la palette complète (ssg-src/registry.jsx) : le
-// renderer de publication (ssg-src/renderer.jsx) s'appuie sur cette palette-là pour
+// blocs sont aussi enregistrés dans la palette complète (app/puck/registry.jsx) : le
+// renderer de publication (app/ssg/renderer.jsx) s'appuie sur cette palette-là pour
 // rendre le contenu fusionné dans ContentSlot — un type de bloc absent de registry.jsx
 // planterait le rendu de toute page en contenant un, même si l'édition elle-même se fait
 // ici. Deux
 // variantes de champs racine : une page standalone n'a pas de date, un article en a une
 // (voir `kind` ci-dessous, "page" ou "post" — mêmes valeurs que celles déjà utilisées par
-// addPage()/listContentPages() dans app.js/site-builder.js).
+// addPage()/listContentPages() dans app/app.js/app/site/site-builder.js).
 //
 // iframe: { enabled: false } : comme puck-layout-editor.jsx, même si RichText n'a lui-même
-// aucun binding à résoudre via SsgContext. Testé les deux réglages en pratique (voir
-// e2e/probe-editor.mjs, script jetable) : l'édition inline directement dans le canvas
+// aucun binding à résoudre via SsgContext. Testé les deux réglages en pratique :
+// l'édition inline directement dans le canvas
 // (superposition "portail" de @puckeditor/core, registerOverlayPortal) ne fonctionne
 // correctement qu'avec l'iframe par défaut de Puck ET une vraie sélection pointeur — mais
 // avec cet iframe, la sélection d'un bloc programmatique/cross-frame se comporte
@@ -35,14 +35,14 @@
 import { createRoot } from "react-dom/client";
 import { Puck } from "@puckeditor/core";
 import "@puckeditor/core/puck.css";
-import { RichText } from "../ssg-src/components/rich-text.jsx";
-import { Heading } from "../ssg-src/components/heading.jsx";
-import { Callout } from "../ssg-src/components/callout.jsx";
-import { Quote } from "../ssg-src/components/quote.jsx";
-import { Divider } from "../ssg-src/components/divider.jsx";
-import { CodeBlock } from "../ssg-src/components/code-block.jsx";
-import { Accordion } from "../ssg-src/components/accordion.jsx";
-import { Space } from "../ssg-src/components/space.jsx";
+import { RichText } from "../app/puck/components/rich-text.jsx";
+import { Heading } from "../app/puck/components/heading.jsx";
+import { Callout } from "../app/puck/components/callout.jsx";
+import { Quote } from "../app/puck/components/quote.jsx";
+import { Divider } from "../app/puck/components/divider.jsx";
+import { CodeBlock } from "../app/puck/components/code-block.jsx";
+import { Accordion } from "../app/puck/components/accordion.jsx";
+import { Space } from "../app/puck/components/space.jsx";
 
 const ROOT_FIELDS_BASE = {
   title: { type: "text", label: "Titre" },
@@ -71,7 +71,7 @@ let latestData = null;
  * @param {import("@puckeditor/core").Data} opts.data
  * @param {"page"|"post"} opts.kind
  * @param {() => void} [opts.onChange] - notifié à chaque modification (aperçu en direct,
- *   voir app.js) — pas de valeur passée, l'appelant relit via getData() si besoin, pour
+ *   voir app/app.js) — pas de valeur passée, l'appelant relit via getData() si besoin, pour
  *   ne jamais désynchroniser deux façons différentes de lire l'état éditeur.
  */
 export function mount(elementId, { data, kind, onChange }) {

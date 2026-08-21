@@ -2,7 +2,7 @@
 
 ## Contexte
 
-Aujourd'hui, `walkContentFiles()` (`site-builder.js:165`) fait 1 appel `listTree` puis
+Aujourd'hui, `walkContentFiles()` (`app/site/site-builder.js:165`) fait 1 appel `listTree` puis
 N appels `getBlob` en parallèle (un par fichier `.md`) — utilisé par `fetchContentFiles`
 (build du site) et `listContentPages` (écran "pages du site"). On veut réduire ça à un
 seul appel réseau, si possible pour chaque fournisseur.
@@ -28,12 +28,12 @@ paginé en interne — justifie la divergence.
 Chaque client API expose une méthode de même nom, `fetchContentBlobs(owner, repo, ref)`,
 qui retourne directement `{ "content/x.md": "texte décodé", ... }` — comme les autres
 méthodes déjà asymétriques entre clients (`saveFile`, `createBranch`, etc., voir les
-commentaires en tête de `github-api.js`). `site-builder.js` n'a plus besoin de
+commentaires en tête de `app/providers/github-api.js`). `app/site/site-builder.js` n'a plus besoin de
 `walkContentFiles`/`getBlob` : `fetchContentFiles` et `listContentPages` appellent
 `api.fetchContentBlobs(owner, repo, "main")` et appliquent leur logique actuelle
 (`ensureFrontMatter`, extraction de titre, exclusion des `_index.md`) sur le résultat.
 
-### Nouveau module partagé `tar-utils.js`
+### Nouveau module partagé `app/site/tar-utils.js`
 
 Chargé comme les autres, simple balise `<script>` dans `index.html`, pas de build.
 
@@ -44,7 +44,7 @@ Chargé comme les autres, simple balise `<script>` dans `index.html`, pas de bui
   racine (`{repo}-{ref}-{shortsha}/` ou équivalent) — il faut détecter/retirer ce
   préfixe avant de filtrer sur `content/*.md`.
 
-### `ForgejoApi.fetchContentBlobs` (`api.js`) et `GitLabApi.fetchContentBlobs` (`gitlab-api.js`)
+### `ForgejoApi.fetchContentBlobs` (`app/providers/api.js`) et `GitLabApi.fetchContentBlobs` (`app/providers/gitlab-api.js`)
 
 `fetch` de l'endpoint archive respectif, `parseTarGz`, filtrage `content/*.md`,
 décodage UTF-8 via `TextDecoder` directement sur les bytes bruts (pas de base64 ici,
@@ -52,7 +52,7 @@ contrairement à `decodeBase64Utf8`). Remplace `listTree` + `getBlob` entièreme
 ces deux fournisseurs — pour GitLab, supprime aussi la pagination interne actuelle du
 `listTree`.
 
-### `GitHubApi.fetchContentBlobs` (`github-api.js`)
+### `GitHubApi.fetchContentBlobs` (`app/providers/github-api.js`)
 
 Garde `listTree` (déjà 1 appel), puis un seul `POST /graphql` avec un alias
 `object(expression: "{ref}:{path}")` par fichier trouvé dans l'arbre, au lieu de N
@@ -62,9 +62,9 @@ requêtes si besoin — reste très inférieur à l'actuel 1-par-fichier).
 
 ### Déploiement
 
-Ajouter `tar-utils.js` à la fois dans `index.html` (balise `<script>`) et dans
+Ajouter `app/site/tar-utils.js` à la fois dans `index.html` (balise `<script>`) et dans
 `.github/workflows/deploy-pages.yml` (même liste que
-`providers.js`/`github-api.js`/`gitlab-api.js`, voir commit `9509bcc`).
+`app/providers/providers.js`/`app/providers/github-api.js`/`app/providers/gitlab-api.js`, voir commit `9509bcc`).
 
 ### README
 
@@ -74,15 +74,15 @@ asymétrie Forgejo/GitLab (archive) vs GitHub (GraphQL) et pourquoi.
 
 ## Fichiers touchés
 
-- `tar-utils.js` (nouveau) — parseur tar+gzip partagé
-- `api.js` — `ForgejoApi.fetchContentBlobs`, retrait de `listTree`/`getBlob` si plus
+- `app/site/tar-utils.js` (nouveau) — parseur tar+gzip partagé
+- `app/providers/api.js` — `ForgejoApi.fetchContentBlobs`, retrait de `listTree`/`getBlob` si plus
   appelés ailleurs (vérifier)
-- `gitlab-api.js` — `GitLabApi.fetchContentBlobs`, retrait de la pagination `listTree`
+- `app/providers/gitlab-api.js` — `GitLabApi.fetchContentBlobs`, retrait de la pagination `listTree`
   si plus appelée ailleurs
-- `github-api.js` — `GitHubApi.fetchContentBlobs` (GraphQL batché), garde `listTree`
-- `site-builder.js` — `fetchContentFiles`/`listContentPages` appellent
+- `app/providers/github-api.js` — `GitHubApi.fetchContentBlobs` (GraphQL batché), garde `listTree`
+- `app/site/site-builder.js` — `fetchContentFiles`/`listContentPages` appellent
   `api.fetchContentBlobs`, suppression de `walkContentFiles`
-- `index.html`, `.github/workflows/deploy-pages.yml` — inclusion de `tar-utils.js`
+- `index.html`, `.github/workflows/deploy-pages.yml` — inclusion de `app/site/tar-utils.js`
 - `README.md` — mise à jour "Pistes explorées et mises de côté"
 
 ## Vérification

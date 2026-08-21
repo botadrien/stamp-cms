@@ -3,14 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild editor-src/ssg-builder.js --bundle --minify --format=iife --global-name=SsgBuilder --jsx=automatic --outfile=ssg-builder.bundle.js && esbuild editor-src/puck-layout-editor.jsx --bundle --minify --format=iife --global-name=PuckLayoutEditor --jsx=automatic --outfile=puck-layout-editor.bundle.js && esbuild editor-src/puck-content-editor.jsx --bundle --minify --format=iife --global-name=PuckContentEditor --jsx=automatic --outfile=puck-content-editor.bundle.js && node scripts/build-html.mjs",
-    "e2e:up": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans; docker compose -f e2e/docker-compose.yml up -d && node e2e/seed.mjs",
-    "e2e:down": "docker compose -f e2e/docker-compose.yml down -v --remove-orphans",
-    "e2e:test": "npm run build && playwright test -c e2e/playwright.config.mjs",
+    "build": "esbuild editor-src/ssg-builder.js --bundle --minify --format=iife --global-name=SsgBuilder --jsx=automatic --outfile=app/ssg-builder.bundle.js && esbuild editor-src/puck-layout-editor.jsx --bundle --minify --format=iife --global-name=PuckLayoutEditor --jsx=automatic --outfile=app/puck-layout-editor.bundle.js && esbuild editor-src/puck-content-editor.jsx --bundle --minify --format=iife --global-name=PuckContentEditor --jsx=automatic --outfile=app/puck-content-editor.bundle.js && node scripts/build-html.mjs",
+    "e2e:up": "docker compose -f tests/docker-compose.yml down -v --remove-orphans; docker compose -f tests/docker-compose.yml up -d && node tests/seed.mjs",
+    "e2e:down": "docker compose -f tests/docker-compose.yml down -v --remove-orphans",
+    "e2e:test": "npm run build && playwright test -c tests/playwright.config.mjs",
     "e2e": "npm run e2e:up && npm run e2e:test; status=$?; npm run e2e:down; exit $status",
-    "e2e:gitlab:up": "docker compose -f e2e/docker-compose.gitlab.yml down -v --remove-orphans; docker compose -f e2e/docker-compose.gitlab.yml up -d && node e2e/seed-gitlab.mjs",
-    "e2e:gitlab:down": "docker compose -f e2e/docker-compose.gitlab.yml down -v --remove-orphans",
-    "e2e:gitlab:test": "npm run build && playwright test -c e2e/playwright.gitlab.config.mjs",
+    "e2e:gitlab:up": "docker compose -f tests/docker-compose.gitlab.yml down -v --remove-orphans; docker compose -f tests/docker-compose.gitlab.yml up -d && node tests/seed-gitlab.mjs",
+    "e2e:gitlab:down": "docker compose -f tests/docker-compose.gitlab.yml down -v --remove-orphans",
+    "e2e:gitlab:test": "npm run build && playwright test -c tests/playwright.gitlab.config.mjs",
     "e2e:gitlab": "npm run e2e:gitlab:up && npm run e2e:gitlab:test; status=$?; npm run e2e:gitlab:down; exit $status"
   },
   "devDependencies": {

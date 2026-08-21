@@ -1,7 +1,8 @@
-// Génère index.html à partir de index.template.html en ajoutant un paramètre de
+// Génère app/index.html à partir de app/index.template.html en ajoutant un paramètre de
 // version (?v=...) à chaque asset local, pour éviter que les navigateurs (ou un CDN
-// devant Codeberg Pages) ne resservent une version périmée de app.js/editor.bundle.js
-// après un déploiement. index.html est généré (gitignore) — on édite le template.
+// devant Codeberg Pages) ne resservent une version périmée de app/app.js ou des bundles
+// (ssg-builder.bundle.js, etc.) après un déploiement. app/index.html est généré
+// (gitignore) — on édite le template.
 import { readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 
@@ -14,7 +15,7 @@ function buildVersion() {
 }
 
 const version = buildVersion();
-const template = readFileSync("index.template.html", "utf-8");
+const template = readFileSync("app/index.template.html", "utf-8");
 
 // Ne touche qu'aux assets locaux (pas de "://"), en ajoutant ?v=<version>.
 const html = template.replace(
@@ -22,5 +23,5 @@ const html = template.replace(
   (match, attr, url) => (url.includes("://") ? match : `${attr}="${url}?v=${version}"`)
 );
 
-writeFileSync("index.html", html);
-console.log(`index.html généré (version ${version})`);
+writeFileSync("app/index.html", html);
+console.log(`app/index.html généré (version ${version})`);

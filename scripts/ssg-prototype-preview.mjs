@@ -1,7 +1,7 @@
-// Tâche 10 (voir docs/plan-puck-ssg.md, "Point de contrôle prototype") : construit un
-// site de démo avec le renderer Puck (ssg-src/renderer.jsx) et les gabarits Puck PAR
-// DÉFAUT (ssg-src/default-templates.js — ceux réellement utilisés par site-builder.js en
-// prod, voir buildSiteFiles()) à partir d'un contenu Markdown fixture, et écrit le
+// Construit un site de démo avec le renderer Puck (app/ssg/renderer.jsx) et les
+// gabarits Puck PAR DÉFAUT (app/ssg/default-templates.js — ceux réellement utilisés par
+// app/site/site-builder.js en prod, voir buildSiteFiles()) à partir d'un contenu Markdown
+// fixture, et écrit le
 // résultat HTML/XML dans tmp/ssg-preview/ — pour vérifier à l'œil (et par un serveur
 // statique local) que bindings + collections + slot API de Puck + rendu du corps de
 // page/article coopèrent bien sur un cas représentatif, avant de publier depuis l'app.
@@ -14,12 +14,12 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { buildSite } from "../ssg-src/renderer.jsx";
-import { defaultTemplates } from "../ssg-src/default-templates.js";
+import { buildSite } from "../app/ssg/renderer.jsx";
+import { defaultTemplates } from "../app/ssg/default-templates.js";
 
 const OUT_DIR = new URL("../tmp/ssg-preview/", import.meta.url);
 
-// Contenu fixture, même forme que fetchContentFiles() (site-builder.js) :
+// Contenu fixture, même forme que fetchContentFiles() (app/site/site-builder.js) :
 // { "content/xxx.md": "texte front matter + corps" }.
 const files = {
   "content/_index.md": `+++
@@ -30,17 +30,16 @@ title = "Démo Puck SSG"
 title = "À propos"
 +++
 
-Ceci est une page fixture pour le point de contrôle prototype — son corps doit
-apparaître tel quel sur sa page publiée, via le composant **PageContent**.
+Ceci est une page fixture — son corps doit apparaître tel quel sur sa page publiée,
+via le composant **ContentSlot**.
 `,
   "content/blog/lancement-du-nouveau-moteur.md": `+++
 title = "Lancement du nouveau moteur de rendu"
 date = 2026-08-10
 +++
 
-On vient de remplacer Zola/Tera par un renderer maison piloté par Puck — voir
-\`docs/plan-puck-ssg.md\` pour le détail. Cet article sert de contenu fixture au
-point de contrôle prototype (tâche 10).
+Le renderer maison piloté par Puck est décrit dans \`docs/plan-puck-ssg.md\`. Cet
+article sert de contenu fixture pour ce script.
 `,
   "content/blog/comment-fonctionnent-les-bindings.md": `+++
 title = "Comment fonctionnent les bindings"

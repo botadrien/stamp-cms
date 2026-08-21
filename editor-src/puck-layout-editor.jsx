@@ -1,14 +1,14 @@
-// Bundle IIFE pour app.js (script classique, sans import) — monte l'éditeur visuel Puck
+// Bundle IIFE pour app/app.js (script classique, sans import) — monte l'éditeur visuel Puck
 // (@puckeditor/core) comme global `PuckLayoutEditor`, même principe que
 // puck-content-editor.jsx (PuckContentEditor) et ssg-builder.js (SsgBuilder) : voir
 // README, "Inclusion des packages JS".
 //
-// puckConfig (la palette de composants, voir ssg-src/registry.jsx) est réimporté ici
+// puckConfig (la palette de composants, voir app/puck/registry.jsx) est réimporté ici
 // plutôt que réutilisé depuis SsgBuilder.puckConfig (déjà bundlé dans
 // ssg-builder.bundle.js) — volontairement, malgré la duplication de code que ça cause :
 // chaque bundle esbuild IIFE embarque sa PROPRE copie de React (aucun ne partage de
 // module runtime avec un autre), donc les fonctions render() de la palette (qui
-// appellent useContext(SsgContext) via ssg-src/ssg-context.js) doivent tourner sous LE
+// appellent useContext(SsgContext) via app/puck/ssg-context.js) doivent tourner sous LE
 // MÊME React que celui qui pilote le rendu de <Puck> — sinon les hooks appellent un
 // dispatcher React d'une instance différente de celle qui exécute réellement le rendu
 // (erreur "Invalid hook call" ou, au mieux, un Context.Provider dont la valeur ne
@@ -18,18 +18,18 @@
 //
 // iframe: { enabled: false } : le canvas d'édition est rendu inline dans le document
 // plutôt que dans un iframe isolé — nécessaire pour que le Context React de nos
-// composants (SsgContext, voir ssg-src/ssg-context.js) traverse jusqu'au rendu de chaque
+// composants (SsgContext, voir app/puck/ssg-context.js) traverse jusqu'au rendu de chaque
 // bloc dans le canvas ; un iframe serait un realm JS séparé, où useContext() ne verrait
 // jamais le <SsgContext.Provider> posé autour de <Puck> ci-dessous. Nos composants
-// n'utilisent quasiment que des styles inline (voir ssg-src/design-tokens.js), donc le
+// n'utilisent quasiment que des styles inline (voir app/puck/design-tokens.js), donc le
 // risque de collision CSS avec l'UI de Puck elle-même (habituellement la raison de
 // vouloir un iframe) reste faible.
 
 import { createRoot } from "react-dom/client";
 import { Puck } from "@puckeditor/core";
 import "@puckeditor/core/puck.css";
-import { SsgContext } from "../ssg-src/ssg-context.js";
-import { puckConfig } from "../ssg-src/registry.jsx";
+import { SsgContext } from "../app/puck/ssg-context.js";
+import { puckConfig } from "../app/puck/registry.jsx";
 
 let root = null;
 
@@ -37,7 +37,7 @@ let root = null;
  * @param {string} elementId
  * @param {Object} opts
  * @param {import("@puckeditor/core").Data} opts.data
- * @param {import("../ssg-src/types.js").Context} opts.context - contexte de prévisualisation (voir buildLayoutEditorData() dans site-builder.js)
+ * @param {import("../app/ssg/types.js").Context} opts.context - contexte de prévisualisation (voir buildLayoutEditorData() dans app/site/site-builder.js)
  * @param {(data: import("@puckeditor/core").Data) => void} opts.onPublish
  * @param {() => void} [opts.onBack]
  */

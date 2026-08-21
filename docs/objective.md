@@ -69,8 +69,6 @@ site vide — chaque cas a un message compréhensible et une action claire pour 
 
 ## Hors scope pour cette itération
 
-*   Support d'autres fournisseurs Git au-delà de Codeberg et GitHub (GitLab...).
-    
 *   Gestion avancée des médias (upload, bibliothèque d'images).
     
 *   Système de plugins/thèmes.
@@ -84,5 +82,5 @@ Le scénario de bout en bout : une personne qui n'a jamais entendu parler de Git
 sur le POC, se connecte avec Codeberg, crée un nouveau site (ou en choisit un existant),  
 ouvre une page, la modifie avec l'éditeur riche (texte + au moins une image ou un  
 tableau), publie, et voit la confirmation — puis vérifie que le site est bien accessible  
-publiquement via Codeberg Pages avec le contenu attendu. Les tests e2e (`e2e/`) sont le  
+publiquement via Codeberg Pages avec le contenu attendu. Les tests e2e (`tests/`) sont le  
 bon endroit pour coder ce scénario et garder une preuve automatisée que ça fonctionne.
