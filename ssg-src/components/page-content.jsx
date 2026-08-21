@@ -54,7 +54,25 @@ export const PageContent = {
   render: ({ showTitle, showDate }) => {
     const context = useSsgContext();
     const current = context.page;
-    if (!current) return null;
+    if (!current) {
+      // Pas de page courante (ex. canvas de l'éditeur de mise en page sur un site sans
+      // aucun contenu encore) — un placeholder plutôt que `null`, pour que le bloc reste
+      // sélectionnable/visible dans le canvas Puck au lieu de disparaître.
+      return (
+        <div
+          style={{
+            maxWidth: "42rem",
+            margin: "0 auto",
+            padding: "3.5rem 1.5rem",
+            color: TOKENS.muted,
+            fontFamily: TOKENS.fontFamily,
+            fontStyle: "italic",
+          }}
+        >
+          Corps de la page — aucun contenu à prévisualiser ici.
+        </div>
+      );
+    }
     return (
       <article style={{ maxWidth: "42rem", margin: "0 auto", padding: "3.5rem 1.5rem", fontFamily: TOKENS.fontFamily }}>
         <style>{PROSE_CSS}</style>

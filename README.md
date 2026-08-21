@@ -26,7 +26,7 @@ Gratuit à 100% et toujours :
 - **Contenu structuré** : pages et articles de blog gérés séparément (triés par date pour le blog), écran "Réglages du site" pour le titre du blog.
 - **Suppression d'un site** : depuis "Réglages du site", zone dangereuse qui supprime le dépôt entier chez le fournisseur (irréversible, il faut retaper le nom du dépôt pour confirmer).
 - **Domaine personnalisé** : depuis "Réglages du site", sous-domaine uniquement pour l'instant (pas de domaine racine/apex) — instructions DNS et vérification en direct (CNAME, TXT le cas échéant) propres au fournisseur connecté, voir "Domaine personnalisé" plus bas pour le détail par fournisseur.
-- **Gabarits** : un seul jeu de gabarits Puck par défaut, partagé par tous les sites pour l'instant (`ssg-src/default-templates.js`) — pas encore d'éditeur visuel par glisser-déposer ni de personnalisation par site (voir `docs/plan-puck-ssg.md`, "Points ouverts").
+- **Mise en page visuelle** : écran dédié (onglet "Mise en page") qui ouvre l'éditeur [Puck](https://puckeditor.com/) — glisser-déposer des blocs (nav, hero, grille de fonctionnalités, cartes/extraits d'article, footer, etc.), réglage de leurs props, aperçu en direct avec les vraies données du site. Un gabarit par type de route (accueil, page, article, index du blog) ; tant qu'il n'a pas été personnalisé, un site retombe sur le gabarit par défaut (`ssg-src/default-templates.js`), partagé par tous les sites — voir "Éditeur de mise en page Puck" plus bas pour l'architecture.
 - **Topic `stamp-cms`** : posé automatiquement sur chaque dépôt créé (topic Forgejo/GitHub/GitLab, public et cherchable). La liste "Tes sites" ne montre que les dépôts portant ce topic (les autres dépôts du compte n'y apparaissent pas), et les sites restent trouvables par recherche de topic côté fournisseur. Les dépôts créés avant l'ajout de cette fonctionnalité n'ont pas le topic et n'apparaissent donc plus dans la liste (pas de migration automatique, cohérent avec le stade très précoce du projet).
 
 ## Feuille de route
@@ -95,8 +95,8 @@ l'image GitLab CE est nettement plus lourde/lente à démarrer (plusieurs minute
 - Domaine personnalisé : traité pour les sous-domaines (voir "Domaine personnalisé" plus bas) — les domaines racine/apex restent un point ouvert (mécanisme A/AAAA/ALIAS différent par fournisseur, pas encore supporté)
 - Médias dans le dépôt Git : ça marche, mais avec des limites de taille (repos volumineux, fichiers individuels plafonnés) — à surveiller si beaucoup de photos/vidéos
 - Rester multi-fournisseur à terme sans complexifier le MVP
-- Pas encore d'éditeur visuel Puck (glisser-déposer de blocs) : les gabarits par défaut (`ssg-src/default-templates.js`) sont fixes et partagés par tous les sites, aucun stockage `.puck.json` par site pour l'instant — voir `docs/plan-puck-ssg.md`, "Points ouverts"
 - Palette de composants Puck encore minimale (hero, grille, CTA, carte/extrait d'article, nav, footer, corps de page) — pas de composant image, par exemple
+- Un seul gabarit par type de route (accueil/page/article/index du blog) : pas de gabarit dédié à UNE page en particulier (ex. une page d'accueil visuellement différente d'une autre page standalone), voir "Éditeur de mise en page Puck" plus bas
 
 ## Pistes explorées et mises de côté
 
@@ -158,12 +158,47 @@ chaque page via `<Render>` de Puck + `renderToStaticMarkup`, génère `rss.xml`/
 Bundlé pour le navigateur via `editor-src/ssg-builder.js` -> `ssg-builder.bundle.js`
 (global `SsgBuilder`), même principe que `editor.jsx`/`RichEditor`.
 
-Tous les sites partagent aujourd'hui le même jeu de gabarits par défaut
-(`ssg-src/default-templates.js`) — pas encore de stockage `.puck.json` par site ni
-d'éditeur visuel (voir "Points à trancher").
+Un site retombe sur le gabarit par défaut (`ssg-src/default-templates.js`) tant qu'il
+n'a pas été personnalisé via l'éditeur de mise en page (voir section dédiée ci-dessous).
 
 Lors de la publication, chaque fichier produit (HTML, `rss.xml`, `sitemap.xml`) est
 publié sur la branche `pages`.
+
+### Éditeur de mise en page Puck
+
+Écran "Mise en page" (sidebar) : liste les 4 types de gabarit (accueil, page standalone,
+article de blog, index du blog — mêmes clés que `ssg-src/default-templates.js`), ouvre
+l'éditeur visuel `<Puck>` (`@puckeditor/core`) en plein écran sur celui choisi
+(`openLayoutEditor()` dans `app.js`).
+
+**Stockage** : un fichier `templates/<nom>.puck.json` par gabarit personnalisé, sur la
+branche `main` (`LAYOUT_TEMPLATE_FILES` dans `site-builder.js`) — le JSON brut produit
+par Puck (`{ root, content }`, voir `ssg-src/renderer.jsx`). Absent -> le gabarit par
+défaut correspondant s'applique, fusion fichier par fichier comme l'ancien thème Zola
+avant lui (un site n'ayant personnalisé qu'UN SEUL gabarit garde les trois autres par
+défaut). Le bouton "Publish" natif de Puck écrit ce fichier puis republie tout le site
+(`saveLayoutTemplate()` dans `site-builder.js`) — pas de brouillon local à gérer comme
+pour l'éditeur de contenu : le canvas de Puck EST déjà l'aperçu en direct.
+
+**Aperçu avec les vraies données** : le canvas affiche les composants avec de vrais
+bindings résolus (nav du site, dernier article, etc.), pas des données inventées —
+`buildLayoutEditorData()` (`site-builder.js`) construit un Context de prévisualisation
+(`SsgBuilder.buildContext()`/`loadCollections()`) à partir du contenu réel du site, avec
+la première page/le premier article existant comme représentant·e pour les gabarits
+"page"/"article".
+
+**Contrainte cross-bundle React** : `editor-src/puck-layout-editor.jsx` (bundlé à part,
+`puck-layout-editor.bundle.js`, global `PuckLayoutEditor`) réimporte la palette de
+composants (`ssg-src/registry.jsx`) au lieu de réutiliser `SsgBuilder`'s — chaque bundle
+esbuild IIFE embarque sa propre copie de React (voir "Inclusion des packages JS"
+ci-dessous), et les fonctions `render()` de la palette (qui appellent `useContext`, voir
+`ssg-src/ssg-context.js`) doivent tourner sous LE MÊME React que celui qui pilote
+`<Puck>` — sinon erreur "Invalid hook call", ou pire, un `Context.Provider` dont la
+valeur ne traverse jamais jusqu'au composant. Seules des données pures (le `Context`
+lui-même) traversent la frontière entre bundles sans risque. Pour la même raison, le
+canvas d'édition est rendu avec `iframe: { enabled: false }` (rendu inline dans le
+document plutôt que dans un iframe isolé, qui serait un realm JS séparé où le
+`SsgContext.Provider` posé autour de `<Puck>` ne serait jamais vu).
 
 ### Lecture du dépôt : archive complète + cache local
 
@@ -196,8 +231,8 @@ Rien n'est publié sur le fournisseur tant qu'on ne clique pas sur "Publier" —
 ### Inclusion des packages JS
 
 BlockNote (React + ProseMirror + Mantine) est trop imbriqué pour un `<script>`/CDN sans bundler (duplication de singletons ProseMirror).
-`ssg-src/renderer.jsx` (React + Puck) a besoin du même traitement, bundlé via `editor-src/ssg-builder.js`.
-`npm run build` (esbuild) produit deux bundles IIFE : `editor.bundle.js`/`.css` et `ssg-builder.bundle.js` — ce dernier reçoit un `Buffer` global injecté (`--inject:editor-src/buffer-shim.js`, package `buffer`) car `gray-matter` y fait référence sans condition, un global Node absent des navigateurs.
+`ssg-src/renderer.jsx` (React + Puck) et l'éditeur de mise en page (`editor-src/puck-layout-editor.jsx`, React + `<Puck>`) ont besoin du même traitement.
+`npm run build` (esbuild) produit trois bundles IIFE : `editor.bundle.js`/`.css`, `ssg-builder.bundle.js` et `puck-layout-editor.bundle.js`/`.css` — le second reçoit un `Buffer` global injecté (`--inject:editor-src/buffer-shim.js`, package `buffer`) car `gray-matter` y fait référence sans condition, un global Node absent des navigateurs. Les trois bundles embarquent chacun leur propre copie de React (aucun module partagé entre bundles esbuild IIFE séparés) — voir "Éditeur de mise en page Puck" plus haut pour pourquoi ça impose de réimporter la palette de composants dans `puck-layout-editor.bundle.js` plutôt que de la réutiliser depuis `ssg-builder.bundle.js`.
 Il génère ensuite `index.html` depuis `index.template.html` (le fichier à éditer, `index.html` est gitignore).
 Chaque script/style local reçoit un `?v=<hash du commit>`, pour éviter le cache périmé après déploiement.
 Le reste de l'app : scripts classiques, sans build.

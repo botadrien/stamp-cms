@@ -10,6 +10,28 @@ function escapeToml(str) {
   return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+// Chemin repo <-> clé de gabarit (voir ssg-src/default-templates.js pour les clés :
+// home/page/article/blogIndex) — un fichier .puck.json par type de route, à la racine de
+// templates/ (à côté de rien d'autre, l'ancien templates/*.html Tera n'existe plus). Un
+// site sans éditeur de mise en page utilisé retombe sur SsgBuilder.defaultTemplates
+// (voir loadLayoutTemplates ci-dessous) : ces fichiers ne sont écrits qu'à la première
+// sauvegarde depuis l'écran "Mise en page" (openLayoutEditor() dans app.js).
+const LAYOUT_TEMPLATE_FILES = {
+  home: "templates/home.puck.json",
+  page: "templates/page.puck.json",
+  article: "templates/article.puck.json",
+  blogIndex: "templates/blog-index.puck.json",
+};
+
+// Libellés affichés sur l'écran "Mise en page" (app.js) — mêmes clés que
+// LAYOUT_TEMPLATE_FILES/SsgBuilder.defaultTemplates.
+const LAYOUT_TEMPLATE_LABELS = {
+  home: "Accueil",
+  page: "Page standalone",
+  article: "Article de blog",
+  blogIndex: "Index du blog",
+};
+
 // URL d'une page à partir de son chemin content/ (content/a-propos.md -> /a-propos/) —
 // même convention que pageUrl() dans ssg-src/content-loader.js (dupliquée ici plutôt
 // qu'importée : ce fichier reste un script classique global, pas un module).
@@ -210,15 +232,43 @@ async function setCustomDomain(owner, repo, domain) {
   });
 }
 
-// Construit le site en mémoire (contenu du repo + gabarits Puck par défaut, voir
-// ssg-src/default-templates.js) sans rien publier — utilisé à la fois par
-// rebuildAndPublishSite() et par buildPreviewSite() ci-dessous, qui ne diffèrent qu'après
-// cet appel (l'un publie sur pages, l'autre sert direct via le service worker de
-// preview). `repoFiles` : { chemin: Uint8Array } tel que renvoyé par getRepoFiles()
-// (repo-cache.js), le contenu du dépôt de site tel quel sur la branche main.
-// `drafts` : { chemin: "texte" } — une page/un article en cours d'édition, pas encore
-// enregistré sur main, qui doit prendre le pas sur le contenu du repo pour cette preview.
-// baseUrl doit être absolue (voir ssg-src/context.js) : l'URL réelle du site publié pour
+// Un gabarit Puck par clé (voir LAYOUT_TEMPLATE_FILES) : celui enregistré dans le repo
+// via l'écran "Mise en page" (openLayoutEditor()/saveLayoutTemplate() dans app.js) s'il
+// existe, sinon le défaut (SsgBuilder.defaultTemplates) — même logique de repli que
+// getSiteFiles() avant lui pour le thème Zola (fusion fichier par fichier, jamais un
+// tout-ou-rien) : un site n'ayant personnalisé qu'UN SEUL gabarit garde les trois autres
+// par défaut. `drafts` : { chemin: "texte" } — un gabarit en cours d'édition, pas encore
+// enregistré (même mécanique que pour le contenu, voir buildSiteFiles ci-dessous),
+// utilisé par l'aperçu en direct de l'éditeur de mise en page.
+function loadLayoutTemplates(repoFiles, drafts = {}) {
+  const templates = {};
+  for (const [key, path] of Object.entries(LAYOUT_TEMPLATE_FILES)) {
+    const raw = path in drafts ? drafts[path] : repoFiles[path] ? new TextDecoder().decode(repoFiles[path]) : null;
+    templates[key] = raw ? JSON.parse(raw) : SsgBuilder.defaultTemplates[key];
+  }
+  return templates;
+}
+
+// URL absolue du site publié (voir ssg-src/context.js) : le domaine personnalisé
+// (site.toml, voir getCustomDomain/setCustomDomain) s'il est enregistré, sinon l'URL de
+// pages du fournisseur connecté. `repoFiles` déjà en main chez l'appelant (getRepoFiles) —
+// site.toml y est déjà présent, aucun aller-retour réseau supplémentaire.
+function resolveBaseUrl(owner, repo, repoFiles) {
+  const customDomain = repoFiles["site.toml"]
+    ? extractCustomDomain(new TextDecoder().decode(repoFiles["site.toml"]))
+    : null;
+  return customDomain ? `https://${customDomain}/` : api.pagesUrl(owner, repo);
+}
+
+// Construit le site en mémoire (contenu du repo + gabarits Puck, personnalisés ou par
+// défaut) sans rien publier — utilisé à la fois par rebuildAndPublishSite() et par
+// buildPreviewSite() ci-dessous, qui ne diffèrent qu'après cet appel (l'un publie sur
+// pages, l'autre sert direct via le service worker de preview). `repoFiles` : { chemin:
+// Uint8Array } tel que renvoyé par getRepoFiles() (repo-cache.js), le contenu du dépôt de
+// site tel quel sur la branche main. `drafts` : { chemin: "texte" } — une page/un article
+// (ou un gabarit, voir loadLayoutTemplates) en cours d'édition, pas encore enregistré sur
+// main, qui doit prendre le pas sur le contenu du repo pour cette preview. baseUrl doit
+// être absolue (voir ssg-src/context.js) : l'URL réelle du site publié pour
 // rebuildAndPublishSite(), l'URL /preview/<owner>/<repo>/ pour buildPreviewSite() — sinon
 // les liens de nav pointeraient en absolu vers le vrai domaine de prod (qui n'a pas
 // encore ce contenu), hors du scope intercepté par sw.js.
@@ -242,7 +292,7 @@ async function buildSiteFiles(owner, repo, repoFiles, baseUrl, drafts = {}) {
     files: contentText,
     title,
     baseUrl,
-    templates: SsgBuilder.defaultTemplates,
+    templates: loadLayoutTemplates(repoFiles, drafts),
   });
 }
 
@@ -271,14 +321,7 @@ async function buildPreviewSite(owner, repo, draftPath, draftText, previewBaseUr
 // changement de renderer — voir le commentaire sur ForgejoApi.publishFiles, api.js).
 async function rebuildAndPublishSite(owner, repo) {
   const repoFiles = await getRepoFiles(owner, repo, api);
-
-  // site.toml (voir getCustomDomain/setCustomDomain) est déjà présent dans repoFiles —
-  // aucun aller-retour réseau supplémentaire pour connaître le domaine personnalisé, même
-  // logique que l'extraction du titre depuis content/_index.md ci-dessous.
-  const customDomain = repoFiles["site.toml"]
-    ? extractCustomDomain(new TextDecoder().decode(repoFiles["site.toml"]))
-    : null;
-  const baseUrl = customDomain ? `https://${customDomain}/` : api.pagesUrl(owner, repo);
+  const baseUrl = resolveBaseUrl(owner, repo, repoFiles);
 
   let output;
   try {
@@ -306,4 +349,62 @@ async function rebuildAndPublishSite(owner, repo) {
   }
 
   return { pageCount: Object.keys(output).length, warning };
+}
+
+// Section factice utilisée pour la prévisualisation d'un gabarit "article"/"blogIndex"
+// dans l'éditeur de mise en page — mêmes title/slug/url que la vraie section blog (voir
+// BLOG_SECTION dans ssg-src/renderer.jsx), dupliquée ici plutôt qu'importée (ce fichier
+// reste un script classique, pas un module).
+const LAYOUT_PREVIEW_BLOG_SECTION = { title: "Blog", slug: "blog", url: "/blog/" };
+
+// Données nécessaires à l'écran "Mise en page" (openLayoutEditor() dans app.js) pour un
+// type de gabarit donné : le gabarit lui-même (personnalisé ou par défaut, voir
+// loadLayoutTemplates) et un Context de prévisualisation représentatif — la première
+// page/le premier article existant (s'il y en a) pour que PageContent affiche du vrai
+// contenu dans le canvas plutôt qu'un placeholder vide (voir page-content.jsx), plutôt
+// qu'une donnée inventée qui ne correspondrait à rien de réel.
+async function buildLayoutEditorData(owner, repo, key) {
+  const repoFiles = await getRepoFiles(owner, repo, api);
+  const templates = loadLayoutTemplates(repoFiles);
+  const baseUrl = resolveBaseUrl(owner, repo, repoFiles);
+
+  const contentFiles = await fetchContentFiles(owner, repo);
+  const collections = await SsgBuilder.loadCollections(contentFiles);
+  const title = contentFiles["content/_index.md"]
+    ? extractTitle(contentFiles["content/_index.md"], "content/_index.md")
+    : repo;
+
+  const contextOpts = { title, baseUrl, collections };
+  if (key === "page") contextOpts.page = collections.pages[0];
+  if (key === "article") {
+    contextOpts.page = collections.blog[0];
+    contextOpts.section = LAYOUT_PREVIEW_BLOG_SECTION;
+  }
+  if (key === "blogIndex") contextOpts.section = LAYOUT_PREVIEW_BLOG_SECTION;
+
+  return {
+    data: templates[key],
+    context: SsgBuilder.buildContext(contextOpts),
+  };
+}
+
+// Enregistre un gabarit personnalisé (appelé depuis onPublish du bouton "Publish" natif
+// de Puck, voir openLayoutEditor() dans app.js) et republie immédiatement le site avec —
+// pas de brouillon local à gérer comme pour l'éditeur de contenu (voir
+// buildPreviewSite/triggerPreviewBuild) : le canvas de Puck EST déjà l'aperçu en direct
+// des changements, pas besoin d'un aller-retour de build à part pour ça.
+async function saveLayoutTemplate(owner, repo, key, data) {
+  const path = LAYOUT_TEMPLATE_FILES[key];
+  let sha = null;
+  try {
+    const existing = await api.getFile(owner, repo, path, "main", { silent404: true });
+    sha = existing.sha;
+  } catch (err) {
+    if (err.status !== 404) throw err;
+  }
+  await api.saveFile(owner, repo, path, JSON.stringify(data, null, 2), {
+    sha,
+    message: `Mise à jour du gabarit "${LAYOUT_TEMPLATE_LABELS[key]}"`,
+  });
+  return rebuildAndPublishSite(owner, repo);
 }

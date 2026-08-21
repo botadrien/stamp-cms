@@ -28,7 +28,7 @@ jobs:
         run: |
           mkdir dist
           cp index.html config.js api.js auth.js pkce.js site-builder.js icons.js app.js sw.js icon.svg logo.png github-api.js gitlab-api.js providers.js tar-utils.js repo-cache.js dns-check.js dist/
-          cp editor.bundle.js editor.bundle.css ssg-builder.bundle.js dist/
+          cp editor.bundle.js editor.bundle.css ssg-builder.bundle.js puck-layout-editor.bundle.js puck-layout-editor.bundle.css dist/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

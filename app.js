@@ -78,6 +78,7 @@ function renderStatus(message, type = "info") {
 // façon via le garde previewState !== state dans triggerPreviewBuild()).
 function leaveEditor() {
   RichEditor.unmount();
+  PuckLayoutEditor.unmount();
   if (previewState) clearTimeout(previewState.debounceTimer);
   previewState = null;
 }
@@ -167,6 +168,14 @@ function settingsHash(owner, name) {
   return `${siteHash(owner, name)}/settings`;
 }
 
+function layoutsHash(owner, name) {
+  return `${siteHash(owner, name)}/layouts`;
+}
+
+function layoutEditorHash(owner, name, key) {
+  return `${layoutsHash(owner, name)}/${encodeURIComponent(key)}`;
+}
+
 function parseHash(hash) {
   const clean = (hash || "").replace(/^#\/?/, "");
   if (!clean) return { view: "dashboard" };
@@ -182,6 +191,12 @@ function parseHash(hash) {
   }
   if (segments[2] === "posts") {
     return { view: "posts", owner, repo };
+  }
+  if (segments[2] === "layouts" && segments[3]) {
+    return { view: "layout-editor", owner, repo, key: decodeURIComponent(segments[3]) };
+  }
+  if (segments[2] === "layouts") {
+    return { view: "layouts", owner, repo };
   }
   // Rien après owner/repo : "Pages" est l'écran d'accueil d'un site (pas de segment
   // d'URL dédié), pour que les liens/retours existants vers #/owner/repo continuent de
@@ -204,6 +219,7 @@ function renderSidebar(route) {
   const items = [
     { key: "pages", label: "Pages", icon: ICONS.pages, href: siteHash(owner, repo) },
     { key: "posts", label: "Articles", icon: ICONS.posts, href: postsHash(owner, repo) },
+    { key: "layouts", label: "Mise en page", icon: ICONS.layout, href: layoutsHash(owner, repo) },
     { key: "settings", label: "Réglages", icon: ICONS.settings, href: settingsHash(owner, repo) },
   ];
   sidebarEl.hidden = false;
@@ -256,6 +272,7 @@ async function refreshSidebarPublishedLink(owner, repo) {
 async function renderRoute() {
   if (!api) return; // pas encore authentifié, rien à router pour l'instant
   appEl.classList.remove("editor-split"); // remis par renderEditor() si besoin
+  appEl.classList.remove("layout-editor"); // remis par openLayoutEditor() si besoin
   const route = parseHash(window.location.hash);
   if (route.view === "dashboard") {
     currentRepo = null;
@@ -272,6 +289,10 @@ async function renderRoute() {
     await renderPosts(route.owner, route.repo);
   } else if (route.view === "settings") {
     await renderSiteSettings(route.owner, route.repo);
+  } else if (route.view === "layouts") {
+    await renderLayouts(route.owner, route.repo);
+  } else if (route.view === "layout-editor") {
+    await openLayoutEditor(route.owner, route.repo, route.key);
   } else {
     await openEditor(route.owner, route.repo, route.path);
   }
@@ -457,6 +478,83 @@ function addPage(kind) {
 
 function editPage(path) {
   window.location.hash = editorHash(currentRepo.owner, currentRepo.name, path);
+}
+
+// Liste les 4 gabarits Puck (voir LAYOUT_TEMPLATE_LABELS dans site-builder.js — mêmes
+// clés que SsgBuilder.defaultTemplates) — pas de bouton "Créer" : contrairement aux
+// pages/articles, les gabarits sont fixés par type de route, on ne fait qu'ouvrir
+// l'éditeur visuel sur celui qu'on veut personnaliser.
+async function renderLayouts(owner, name) {
+  leaveEditor();
+  const items = Object.entries(LAYOUT_TEMPLATE_LABELS)
+    .map(
+      ([key, label]) => `
+      <div class="repo-item">
+        <a href="${layoutEditorHash(owner, name, key)}">${label}</a>
+      </div>`
+    )
+    .join("");
+  appEl.innerHTML = `
+    <div class="card">
+      <h2>Mise en page</h2>
+      <p style="color:var(--muted); font-size:14px; line-height:1.6;">
+        Compose visuellement chaque gabarit avec l'éditeur Puck — glisse-dépose des blocs,
+        règle leurs propriétés. Un gabarit non personnalisé reste sur sa mise en page par
+        défaut, partagée par tous les sites.
+      </p>
+      ${items}
+    </div>
+  `;
+}
+
+// Charge le gabarit demandé (personnalisé ou par défaut, voir buildLayoutEditorData()
+// dans site-builder.js — construit aussi un Context de prévisualisation à partir du vrai
+// contenu du site) et monte l'éditeur visuel Puck en plein écran (voir la classe CSS
+// "layout-editor", index.template.html).
+async function openLayoutEditor(owner, name, key) {
+  leaveEditor();
+  appEl.innerHTML = renderStatus("Chargement…", "info");
+
+  let data, context;
+  try {
+    ({ data, context } = await buildLayoutEditorData(owner, name, key));
+  } catch (err) {
+    const backHash = layoutsHash(owner, name);
+    appEl.innerHTML = `
+      <div class="card">
+        <button class="secondary" onclick='window.location.hash = ${JSON.stringify(backHash)}'>&larr; Retour à la mise en page</button>
+        ${renderStatus(err.message, "error")}
+      </div>
+    `;
+    return;
+  }
+
+  appEl.classList.add("layout-editor");
+  appEl.innerHTML = `<div id="layoutEditorStatus"></div><div id="layoutEditorMount"></div>`;
+
+  PuckLayoutEditor.mount("layoutEditorMount", {
+    data,
+    context,
+    onPublish: (newData) => saveLayoutAndPublish(owner, name, key, newData),
+    onBack: () => {
+      window.location.hash = layoutsHash(owner, name);
+    },
+  });
+}
+
+async function saveLayoutAndPublish(owner, name, key, data) {
+  const statusEl = document.getElementById("layoutEditorStatus");
+  if (statusEl) statusEl.innerHTML = renderStatus("Publication…", "info");
+  try {
+    const { warning } = await saveLayoutTemplate(owner, name, key, data);
+    if (statusEl) {
+      statusEl.innerHTML = warning
+        ? renderStatus(warning, "error")
+        : renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
+    }
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = renderStatus(err.message, "error");
+  }
 }
 
 async function renderSiteSettings(owner, name) {

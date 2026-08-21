@@ -8,4 +8,6 @@ playwright-report
 editor.bundle.js
 editor.bundle.css
 ssg-builder.bundle.js
+puck-layout-editor.bundle.js
+puck-layout-editor.bundle.css
 /index.html
