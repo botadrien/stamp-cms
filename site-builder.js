@@ -265,7 +265,10 @@ async function buildPreviewSite(owner, repo, draftPath, draftText, previewBaseUr
 // dans le navigateur), et publie tous les fichiers produits sur la branche pages en un
 // seul commit (voir api.publishFiles — un batch côté Forgejo, une séquence
 // blob/tree/commit/ref via l'API Git Data côté GitHub, plutôt qu'un aller-retour
-// get-sha+PUT séquentiel par fichier).
+// get-sha+PUT séquentiel par fichier). `{ replace: true }` : pages est entièrement
+// régénérée à chaque publication, donc tout fichier qui n'en fait plus partie doit
+// disparaître (sinon d'anciens fichiers s'accumulent indéfiniment, notamment après un
+// changement de renderer — voir le commentaire sur ForgejoApi.publishFiles, api.js).
 async function rebuildAndPublishSite(owner, repo) {
   const repoFiles = await getRepoFiles(owner, repo, api);
 
@@ -285,7 +288,7 @@ async function rebuildAndPublishSite(owner, repo) {
     throw err;
   }
 
-  await api.publishFiles(owner, repo, "pages", output);
+  await api.publishFiles(owner, repo, "pages", output, { replace: true });
 
   // Best-effort : certains fournisseurs (GitLab) exigent un pipeline CI pour publier quoi
   // que ce soit, qui peut rester bloqué indéfiniment faute de runner disponible — voir

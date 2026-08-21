@@ -225,7 +225,18 @@ class ForgejoApi {
   // POST /repos/{owner}/{repo}/contents) qui fait ce que publishFile() faisait fichier
   // par fichier, en un seul appel. Le sha des fichiers déjà présents sur la branche
   // (via listTree) distingue create/update, requis par cet endpoint.
-  async publishFiles(owner, repo, branch, files) {
+  //
+  // `replace` (par défaut false) : si vrai, tout fichier déjà présent sur la branche mais
+  // absent de `files` est supprimé (`operation: "delete"`) — utilisé pour la branche
+  // `pages`, dont le contenu est entièrement régénéré à chaque publication
+  // (rebuildAndPublishSite() dans site-builder.js) : sans ça, changer de renderer (ex.
+  // abandon de Zola pour Puck, voir docs/plan-puck-ssg.md) laisse les anciens fichiers
+  // orphelins indéfiniment (constaté en usage réel : main.css, icônes, pages de
+  // pagination Zola encore présents après plusieurs publications avec le nouveau
+  // renderer, qui ne les produit plus). `false` reste le comportement par défaut pour
+  // `main` (createSite() n'écrit que deux fichiers de structure dans un nouveau dépôt,
+  // additif par nature — jamais de raison d'y supprimer quoi que ce soit).
+  async publishFiles(owner, repo, branch, files, { replace = false } = {}) {
     const tree = await this.listTree(owner, repo, branch);
     const existingShaByPath = new Map(
       tree.tree.filter((entry) => entry.type === "blob").map((entry) => [entry.path, entry.sha])
@@ -237,6 +248,14 @@ class ForgejoApi {
       if (sha) op.sha = sha;
       return op;
     });
+
+    if (replace) {
+      const newPaths = new Set(Object.keys(files));
+      for (const [path, sha] of existingShaByPath) {
+        if (!newPaths.has(path)) fileOps.push({ operation: "delete", path, sha });
+      }
+    }
+
     return this._request(`/repos/${owner}/${repo}/contents`, {
       method: "POST",
       body: JSON.stringify({ files: fileOps, branch, message: "Publication du site" }),
