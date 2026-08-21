@@ -50,10 +50,11 @@ test("créer un site publie automatiquement une branche pages", async ({ page })
   const file = await res.json();
   const decoded = Buffer.from(file.content, "base64").toString("utf-8");
   // Le titre du blog vaut le nom du dépôt par défaut (voir buildIndexStub() dans
-  // site-builder.js) ; c'est le vrai thème volks-typo qui a généré la page (nav réelle,
-  // pas un gabarit fait main).
+  // site-builder.js) ; c'est le vrai renderer Puck qui a généré la page (nav réelle,
+  // composant ssg-src/components/nav.jsx, pas un gabarit fait main).
   expect(decoded).toContain(siteName);
-  expect(decoded).toContain('class="main-navigation"');
+  expect(decoded).toMatch(/<nav[ >]/);
+  expect(decoded).toContain(">Accueil<");
 
   // Sans le webhook "forgejo" filtré sur la branche "pages", Codeberg Pages ne sert
   // jamais le contenu malgré la branche (voir docs.codeberg.org/codeberg-pages/) — on

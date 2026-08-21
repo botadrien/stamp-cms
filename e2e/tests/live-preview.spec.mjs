@@ -73,12 +73,10 @@ test("l'aperçu se génère sans publier et reflète le brouillon en cours", asy
   const previewFrame = page.frameLocator("#previewFrame");
   await expect(previewFrame.locator("body")).toContainText(text, { timeout: 60_000 });
 
-  // Généré par Zola avec le vrai thème/nav — pas juste le texte brut injecté. Le volet
-  // d'aperçu (moitié de la largeur restante après la barre latérale) est plus étroit que
-  // le point de rupture responsive du thème : c'est la nav *mobile*, cachée hors-écran
-  // (tiroir) tant qu'on n'ouvre pas le hamburger, qui s'affiche ici — pas .main-navigation
-  // (desktop, display:none à cette largeur).
-  await expect(previewFrame.getByRole("navigation", { name: "Mobile navigation" })).toContainText("Accueil");
+  // Généré par le renderer Puck avec la vraie nav (ssg-src/components/nav.jsx) — pas
+  // juste le texte brut injecté. Une seule nav, toujours visible (pas de tiroir mobile
+  // dans la palette actuelle).
+  await expect(previewFrame.getByRole("navigation")).toContainText("Accueil");
 
   // Rien n'a été publié : le fichier n'existe pas sur main, aucune page HTML sur pages.
   const mainRes = await page.request.get(
@@ -87,11 +85,9 @@ test("l'aperçu se génère sans publier et reflète le brouillon en cours", asy
   );
   expect(mainRes.status()).toBe(404);
 
-  // Navigation à l'intérieur de l'aperçu : le tiroir mobile n'est cliquable qu'une fois
-  // ouvert (hamburger) — cliquer "Accueil" doit ensuite resservir une autre page via
-  // sw.js, pas un 404 (vérifie le routage /preview/<owner>/<repo>/... au-delà de la
-  // seule page éditée).
-  await previewFrame.getByRole("button", { name: "Toggle navigation menu" }).click();
-  await previewFrame.getByRole("navigation", { name: "Mobile navigation" }).getByRole("link", { name: "Accueil" }).click();
+  // Navigation à l'intérieur de l'aperçu : cliquer "Accueil" doit resservir une autre
+  // page via sw.js, pas un 404 (vérifie le routage /preview/<owner>/<repo>/... au-delà de
+  // la seule page éditée).
+  await previewFrame.getByRole("navigation").getByRole("link", { name: "Accueil" }).click();
   await expect(previewFrame.locator("body")).not.toContainText("Aperçu introuvable");
 });

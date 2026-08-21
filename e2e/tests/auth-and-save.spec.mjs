@@ -66,9 +66,10 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   const decoded = Buffer.from(file.content, "base64").toString("utf-8");
   expect(decoded).toContain(text);
 
-  // Vérification que "Publier" a vraiment régénéré le site avec Zola (pas juste écrit le
-  // Markdown) : la page HTML publiée sur la branche pages contient le texte, avec la
-  // mise en page/nav réelles générées par Zola — pas un fichier isolé.
+  // Vérification que "Publier" a vraiment régénéré le site avec le renderer Puck (pas
+  // juste écrit le JSON) : la page HTML publiée sur la branche pages contient le texte,
+  // avec la vraie nav générée par le composant Puck Nav (ssg-src/components/nav.jsx) —
+  // pas un fichier isolé.
   const pageRes = await page.request.get(
     `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${seed.repoName}/contents/e2e-test/index.html?ref=pages`,
     { headers: { Authorization: `token ${seed.token}` } }
@@ -77,6 +78,6 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   const pageFile = await pageRes.json();
   const html = Buffer.from(pageFile.content, "base64").toString("utf-8");
   expect(html).toContain(text);
-  expect(html).toContain('class="main-navigation"');
+  expect(html).toMatch(/<nav[ >]/);
   expect(html).toContain(">Accueil<");
 });
