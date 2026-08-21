@@ -19,6 +19,7 @@ sudo systemctl enable --now docker
 # survives VM recreation instead of requiring `gh auth login` every time
 mkdir -p ~/.config "$PROJECT_DIR/tmp/lima-vm-cache/gh-config"
 rm -rf ~/.config/gh && ln -s "$PROJECT_DIR/tmp/lima-vm-cache/gh-config" ~/.config/gh
+gh auth setup-git || echo "gh non authentifié pour l'instant — lancez 'gh auth login && gh auth setup-git' une fois connecté"
 
 # mise (language version manager) + node, pinned in mise.toml
 rm -rf ~/.local && ln -s "$PROJECT_DIR/tmp/lima-vm-cache/local" ~/.local
