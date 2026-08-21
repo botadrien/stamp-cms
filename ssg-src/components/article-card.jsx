@@ -4,14 +4,16 @@
  * — voir ssg-src/fields/binding-field.jsx) en mode "collection" pour choisir sa source
  * (ex. `blog`, triée par date décroissante, limitée à N éléments).
  *
- * Le Repeater réel (Track C) n'est pas encore fusionné sur cette branche : la boucle
- * ci-dessous (`items.map`) est un stub minimal en attendant — chaque carte affiche un
- * gabarit fixe (titre/date/extrait/lien) plutôt qu'un slot Puck personnalisable par
- * item. À remplacer par une composition Repeater + slot une fois Track C fusionné
- * (voir Phase 2 du plan).
+ * Reste un gabarit de carte fixe (titre/date/extrait/lien) plutôt qu'une composition
+ * Repeater + slot : pour une mise en page de carte personnalisable par item, voir
+ * plutôt Repeater (ssg-src/components/repeater.jsx) + ArticleTeaser
+ * (ssg-src/components/article-teaser.jsx). ArticleCard reste utile tel quel quand la
+ * mise en page de carte n'a pas besoin d'être personnalisée par item.
  */
 
 import { bindingField } from "../fields/binding-field.jsx";
+import { resolveProps } from "../resolver.js";
+import { useSsgContext } from "../ssg-context.js";
 
 const COLUMNS_OPTIONS = [1, 2, 3].map((value) => ({ label: `${value} colonne${value > 1 ? "s" : ""}`, value }));
 
@@ -35,7 +37,9 @@ export const ArticleCard = {
     accentColor: "#2563eb",
   },
   render: ({ source, columns, accentColor }) => {
-    const items = Array.isArray(source) ? source : [];
+    const context = useSsgContext();
+    const { source: resolvedSource } = resolveProps({ source }, context);
+    const items = Array.isArray(resolvedSource) ? resolvedSource : [];
     return (
       <div
         style={{

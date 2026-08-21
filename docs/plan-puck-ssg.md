@@ -254,6 +254,56 @@ Tâche 5 (renderer/orchestrateur) puis tâche 10 (point de contrôle prototype) 
 deux étapes ont besoin que les tracks A à D existent réellement, pas juste en
 contrat — elles ne peuvent démarrer qu'après la fusion des worktrees parallèles.
 
+**✅ Fait** :
+
+- `ssg-src/registry.jsx` : le seul fichier "registre" du projet (voir la règle
+  anti-conflit ci-dessus), agrège tous les composants Puck (palette de Track D +
+  Repeater de Track C) en une Config Puck.
+- `ssg-src/ssg-context.js` : `SsgContext`/`useSsgContext`, extraits de
+  `repeater.jsx` (Track C) vers un module partagé — plusieurs composants de la
+  palette en ont besoin, pas seulement le Repeater. `repeater.jsx` réexporte
+  depuis ce module, rien de cassé côté API déjà écrite.
+- Correctif d'intégration sur `nav.jsx` et `article-card.jsx` (Track D) : leurs
+  props bindées (`items`, `source`) arrivaient non résolues (un `BindDescriptor`
+  brut plutôt qu'un tableau) faute d'appeler `resolveProps` — les deux
+  composants avaient eux-mêmes flagué ce point dans leur commentaire de tête
+  ("stub en attendant Track C"). Résolu en leur faisant lire le Context via
+  `useSsgContext()` et résoudre leurs propres props, exactement le pattern déjà
+  utilisé par `Repeater` pour sa prop `source`.
+- `ssg-src/components/article-teaser.jsx` (nouveau, écrit en Phase 2 — pas
+  attribué à Track D) : brique minimale pensée pour vivre dans le slot d'un
+  Repeater, chaque champ bindé sur l'item courant (`item.title`, `item.date`,
+  `item.excerpt`, `item.url`). Nécessaire car la palette de Track D ne contenait
+  encore aucun composant bindable au niveau item avant celui-ci — sans lui,
+  impossible de démontrer "Repeater + bindings" bout en bout pour la tâche 10.
+- `ssg-src/renderer.jsx` (tâche 5) : parcourt les routes (accueil, pages
+  standalone, index du blog, articles), construit le Context de chacune via
+  `buildContext()`, rend chaque gabarit Puck avec `<Render>` +
+  `renderToStaticMarkup` enveloppé dans `<SsgContext.Provider>`, génère
+  `rss.xml`/`sitemap.xml` (Track E), et renvoie `{ files }` — même forme que
+  `ZolaBuilder.buildSite()` (`editor-src/zola-builder.js`), pour rester un
+  remplacement direct plus tard. Ne pré-résout jamais tout l'arbre Puck d'un
+  coup : seul le Context racine est fourni globalement, chaque composant
+  bindable résout ses propres props au moment du rendu (sinon les bindings
+  `item.*` du slot d'un Repeater se résoudraient avant que celui-ci n'ait
+  injecté `item`). `site-builder.js`/`app.js` ne sont pas encore branchés
+  dessus — seul le renderer lui-même est construit et vérifié ici.
+- **Point de contrôle prototype (tâche 10)** : `scripts/ssg-prototype-preview.mjs`
+  construit un site fixture (front matter + Markdown, une page + trois articles
+  de blog) et écrit accueil/pages/index blog/articles/rss/sitemap dans
+  `tmp/ssg-preview/`. Vérifié à l'œil dans un navigateur (page d'accueil : nav
+  résolue depuis `site.nav`, Hero statique, Repeater bindé sur la collection
+  `blog` — triée par date décroissante, limitée à 2 — dont le slot
+  `ArticleTeaser` affiche bien titre/date/extrait/lien de chaque item réel) et
+  par lecture directe du HTML/XML généré. Bindings + collections + slot API de
+  Puck coopèrent correctement sur ce cas — validé, tracks A à E confirmées
+  compatibles entre elles.
+  Pas de gabarit "page/article avec corps rendu" dans ce point de contrôle :
+  aucun composant de la palette ne bind encore sur `page.body`/`item.body`
+  (aucune track n'en avait la charge) — laissé pour la suite de la feuille de
+  route ("Palette de composants"), hors scope de la tâche 10 qui ne portait que
+  sur "page d'index avec Repeater".
+
 #### Brief — Track A (Données)
 
 Construire le modèle de contexte et le chargeur Markdown/front matter.

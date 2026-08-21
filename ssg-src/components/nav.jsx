@@ -5,13 +5,16 @@
  * `site.nav` par défaut (voir buildNav() dans ssg-src/context.js), ou une collection
  * de contenu (ex. derniers articles) via le mode "collection" du champ.
  *
- * Le Repeater réel (Track C) n'est pas encore fusionné sur cette branche : la boucle
- * ci-dessous (`items.map`) est un stub minimal en attendant — pas de slot Puck
- * personnalisable par item, juste un gabarit de lien fixe. À remplacer par une
- * composition Repeater + slot une fois Track C fusionné (voir Phase 2 du plan).
+ * Une nav n'a pas besoin du slot du Repeater (chaque lien est juste { label, url },
+ * pas une mise en page composable par item) — elle résout directement sa prop `items`
+ * via `resolveProps`/`useSsgContext` (voir ssg-src/ssg-context.js), sans passer par le
+ * Repeater. Ce que le Repeater apporte en plus (slot personnalisable par item) sert à
+ * ArticleTeaser (voir ssg-src/components/article-teaser.jsx), pas à la nav.
  */
 
 import { bindingField } from "../fields/binding-field.jsx";
+import { resolveProps } from "../resolver.js";
+import { useSsgContext } from "../ssg-context.js";
 
 const VARIANT_OPTIONS = [
   { label: "Horizontal", value: "horizontal" },
@@ -41,7 +44,9 @@ export const Nav = {
     textColor: "#0f172a",
   },
   render: ({ items, variant, backgroundColor, textColor }) => {
-    const resolvedItems = Array.isArray(items) ? items : [];
+    const context = useSsgContext();
+    const { items: resolved } = resolveProps({ items }, context);
+    const resolvedItems = Array.isArray(resolved) ? resolved : [];
     return (
       <nav
         style={{

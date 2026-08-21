@@ -15,33 +15,23 @@
  * propres props/metadata (son hook `resolveData` par composant est une chose
  * distincte de notre `resolveProps`, voir docs/plan-puck-ssg.md) — rien dans l'API
  * Puck ne permet de faire varier ces metadata par appel du slot. Le Context (voir
- * ssg-src/types.js) circule donc via `SsgContext`, un contexte React défini ici :
- * chaque item de la boucle fournit son propre `SsgContext.Provider` autour de son
- * rendu du slot, et tout composant qui affiche une valeur bindée (palette de
- * composants, Track D) doit lire ce contexte via `useSsgContext()` et appeler
- * `resolveProps` sur ses propres props avant affichage — exactement ce que ce
- * composant fait lui-même pour sa prop `source`. L'orchestrateur (tâche 5, à venir)
- * doit envelopper son appel à `<Render>` dans `<SsgContext.Provider value={context}>`
- * pour que le contexte racine (site/page/section/collections) soit disponible même
- * hors de tout Repeater.
+ * ssg-src/types.js) circule donc via `SsgContext` (désormais dans
+ * ssg-src/ssg-context.js, voir ce fichier — extrait d'ici en Phase 2 d'intégration
+ * car partagé par toute la palette, pas seulement le Repeater) : chaque item de la
+ * boucle fournit son propre `SsgContext.Provider` autour de son rendu du slot, et
+ * tout composant qui affiche une valeur bindée (palette de composants, Track D) doit
+ * lire ce contexte via `useSsgContext()` et appeler `resolveProps` sur ses propres
+ * props avant affichage — exactement ce que ce composant fait lui-même pour sa prop
+ * `source`. L'orchestrateur (ssg-src/renderer.jsx, tâche 5) enveloppe son appel à
+ * `<Render>` dans `<SsgContext.Provider value={context}>` pour que le contexte
+ * racine (site/page/section/collections) soit disponible même hors de tout Repeater.
  */
 
-import { createContext, useContext } from "react";
 import { resolveProps } from "../resolver.js";
 import { bindingField } from "../fields/binding-field.jsx";
+import { SsgContext, useSsgContext } from "../ssg-context.js";
 
-const EMPTY_CONTEXT = {
-  site: { title: "", baseUrl: "", nav: [] },
-  collections: { pages: [], blog: [] },
-};
-
-/** @type {import("react").Context<import("../types.js").Context | undefined>} */
-export const SsgContext = createContext(undefined);
-
-/** @returns {import("../types.js").Context} */
-export function useSsgContext() {
-  return useContext(SsgContext) ?? EMPTY_CONTEXT;
-}
+export { SsgContext, useSsgContext };
 
 /**
  * Config Puck du composant Repeater (fields + render), prête à être enregistrée dans
