@@ -77,12 +77,24 @@ const home = {
   ],
 };
 
+// Le contenu du slot ci-dessous n'est là que pour le canvas Puck (glisser-déposer,
+// aperçu) — au rendu réel (preview ou publication), ssg-src/template-merge.js l'écrase
+// systématiquement par le contenu propre à la page/l'article en cours (voir buildSite()
+// dans renderer.jsx). Verrouillé (readOnly.content) pour que l'écran "Mise en page" ne
+// laisse pas croire qu'éditer ce placeholder a un effet sur un vrai contenu.
+const contentSlotProps = (id, { showDate }) => ({
+  id,
+  showTitle: true,
+  showDate,
+  content: [{ type: "RichText", props: { id: `${id}-placeholder`, body: "<p>Corps de la page…</p>" } }],
+});
+
 /** @type {PuckData} */
 const page = {
   root: { props: {} },
   content: [
     { type: "Nav", props: navProps("page-nav") },
-    { type: "PageContent", props: { id: "page-content", showTitle: true, showDate: false } },
+    { type: "ContentSlot", props: contentSlotProps("page-content", { showDate: false }), readOnly: { content: true } },
     { type: "Footer", props: footerProps("page-footer") },
   ],
 };
@@ -92,7 +104,7 @@ const article = {
   root: { props: {} },
   content: [
     { type: "Nav", props: navProps("article-nav") },
-    { type: "PageContent", props: { id: "article-content", showTitle: true, showDate: true } },
+    { type: "ContentSlot", props: contentSlotProps("article-content", { showDate: true }), readOnly: { content: true } },
     { type: "Footer", props: footerProps("article-footer") },
   ],
 };

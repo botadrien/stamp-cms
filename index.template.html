@@ -138,13 +138,12 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* BlockNote positionne ses widgets flottants (poignée de bloc, menu latéral — via
-       Floating UI) en "position: fixed" inline, calculé en JS : ça échappe à tout
+    /* L'éditeur Puck (canvas + menus de champs) positionne certains de ses widgets
+       flottants en "position: fixed" inline, calculé en JS : ça échappe à tout
        overflow:hidden ancestor et se positionne par défaut relatif au viewport entier,
        pas à ce volet. "contain: layout" fait de .editor-pane le containing block de ces
        descendants fixed (CSS standard), pour qu'ils restent dans ce volet au lieu de
-       flotter par-dessus le volet d'aperçu voisin et intercepter ses clics (observé en
-       e2e : un clic sur un lien dans l'iframe atterrissait sur .bn-trailing-block). */
+       flotter par-dessus le volet d'aperçu voisin et intercepter ses clics. */
     contain: layout;
   }
   main.editor-split #previewFrame {
@@ -264,8 +263,8 @@
   </main>
 </div>
 
-<link rel="stylesheet" href="editor.bundle.css" />
 <link rel="stylesheet" href="puck-layout-editor.bundle.css" />
+<link rel="stylesheet" href="puck-content-editor.bundle.css" />
 <script src="config.js"></script>
 <script src="pkce.js"></script>
 <script src="auth.js"></script>
@@ -273,9 +272,9 @@
 <script src="api.js"></script>
 <script src="github-api.js"></script>
 <script src="gitlab-api.js"></script>
-<script src="editor.bundle.js"></script>
 <script src="ssg-builder.bundle.js"></script>
 <script src="puck-layout-editor.bundle.js"></script>
+<script src="puck-content-editor.bundle.js"></script>
 <script src="repo-cache.js"></script>
 <script src="dns-check.js"></script>
 <script src="site-builder.js"></script>

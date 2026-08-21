@@ -44,7 +44,10 @@ test("le bouton Précédent navigue dans l'appli plutôt que vers le flow OAuth"
   const addPageCard = page.locator(".card", { has: page.locator("#newPageTitle") });
   await addPageCard.locator("#newPageTitle").fill(`nav-test-${Date.now()}`);
   await addPageCard.getByRole("button", { name: "Créer" }).click();
-  await expect(page.locator("#editorMount [contenteditable=true]")).toBeVisible({ timeout: 10_000 });
+  // Pas de contenteditable tant qu'aucun bloc n'est sélectionné (voir
+  // editor-src/puck-content-editor.jsx) — le bloc RichText par défaut suffit à confirmer
+  // que le canvas Puck a bien monté.
+  await expect(page.locator("#editorMount [data-puck-component]")).toBeVisible({ timeout: 10_000 });
   await expect(page).toHaveURL(new RegExp(`#/${seed.repoOwner}/${seed.repoName}/edit/`));
 
   // Précédent -> revient à la liste des pages du même site, pas au formulaire de login

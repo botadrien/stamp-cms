@@ -10,8 +10,9 @@
  * @property {string} url
  * @property {string} [date] - ISO 8601, absent pour les pages standalone sans date
  * @property {string} [excerpt]
- * @property {string} body - HTML déjà rendu depuis le Markdown (voir content-loader.js)
- * @property {Object.<string, any>} frontMatter - champs bruts du front matter
+ * @property {Array<Object>} content - corps Puck de la page/l'article (tableau de nœuds
+ *   Data, voir content-loader.js), injecté au rendu dans le slot ContentSlot du gabarit
+ *   partagé (voir template-merge.js)
  *
  * @typedef {Object} Collections
  * Reprend le split déjà fait côté app existante (`app.js`:

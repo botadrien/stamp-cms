@@ -31,6 +31,7 @@ import { SsgContext } from "./ssg-context.js";
 import { puckConfig } from "./registry.jsx";
 import { buildRssFeed } from "./feeds/rss.js";
 import { buildSitemap } from "./feeds/sitemap.js";
+import { mergeItemContentIntoTemplate } from "./template-merge.js";
 
 /** @typedef {import("./types.js").Context} Context */
 /** @typedef {import("./types.js").Collections} Collections */
@@ -107,7 +108,8 @@ export async function buildSite({ files, title, baseUrl, templates }) {
 
   for (const page of collections.pages) {
     const context = buildContext({ title, baseUrl, collections, page });
-    output[urlToOutputPath(page.url)] = renderPuckPage(templates.page, context);
+    const merged = mergeItemContentIntoTemplate(templates.page, page);
+    output[urlToOutputPath(page.url)] = renderPuckPage(merged, context);
   }
 
   const blogIndexContext = buildContext({ title, baseUrl, collections, section: BLOG_SECTION });
@@ -115,7 +117,8 @@ export async function buildSite({ files, title, baseUrl, templates }) {
 
   for (const article of collections.blog) {
     const context = buildContext({ title, baseUrl, collections, page: article, section: BLOG_SECTION });
-    output[urlToOutputPath(article.url)] = renderPuckPage(templates.article, context);
+    const merged = mergeItemContentIntoTemplate(templates.article, article);
+    output[urlToOutputPath(article.url)] = renderPuckPage(merged, context);
   }
 
   output["rss.xml"] = buildRssFeed(rootContext);

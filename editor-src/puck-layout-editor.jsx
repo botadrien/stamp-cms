@@ -1,6 +1,7 @@
 // Bundle IIFE pour app.js (script classique, sans import) — monte l'éditeur visuel Puck
-// (@puckeditor/core) comme global `PuckLayoutEditor`, même principe que editor.jsx
-// (RichEditor) et ssg-builder.js (SsgBuilder) : voir README, "Inclusion des packages JS".
+// (@puckeditor/core) comme global `PuckLayoutEditor`, même principe que
+// puck-content-editor.jsx (PuckContentEditor) et ssg-builder.js (SsgBuilder) : voir
+// README, "Inclusion des packages JS".
 //
 // puckConfig (la palette de composants, voir ssg-src/registry.jsx) est réimporté ici
 // plutôt que réutilisé depuis SsgBuilder.puckConfig (déjà bundlé dans

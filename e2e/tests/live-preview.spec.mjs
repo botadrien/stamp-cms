@@ -5,6 +5,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { typeInRichTextEditor } from "../editor-helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const seed = JSON.parse(readFileSync(path.join(__dirname, "..", ".seed.json"), "utf-8"));
@@ -64,9 +65,7 @@ test("l'aperçu se génère sans publier et reflète le brouillon en cours", asy
   await addPageCard.getByRole("button", { name: "Créer" }).click();
 
   const text = `Brouillon jamais publié — ${Date.now()}, accents: éàçù.`;
-  const editor = page.locator("#editorMount [contenteditable=true]");
-  await editor.click();
-  await page.keyboard.type(text);
+  await typeInRichTextEditor(page, text);
 
   // Le rebuild d'aperçu est débounced (~1.8s) puis quasi instantané (thème vendoré en CSS
   // précompilé, plus de Sass à recompiler à chaque build) — marge large quand même, ce
@@ -83,7 +82,7 @@ test("l'aperçu se génère sans publier et reflète le brouillon en cours", asy
 
   // Rien n'a été publié : le fichier n'existe pas sur main, aucune page HTML sur pages.
   const mainRes = await page.request.get(
-    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/apercu-e2e.md`,
+    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/apercu-e2e.puck.json`,
     { headers: { Authorization: `token ${seed.token}` } }
   );
   expect(mainRes.status()).toBe(404);

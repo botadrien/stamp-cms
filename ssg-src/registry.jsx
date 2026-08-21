@@ -15,7 +15,8 @@ import { ArticleTeaser } from "./components/article-teaser.jsx";
 import { Nav } from "./components/nav.jsx";
 import { Footer } from "./components/footer.jsx";
 import { Repeater } from "./components/repeater.jsx";
-import { PageContent } from "./components/page-content.jsx";
+import { ContentSlot } from "./components/content-slot.jsx";
+import { RichText } from "./components/rich-text.jsx";
 
 /** @type {import("@puckeditor/core").Config} */
 export const puckConfig = {
@@ -28,6 +29,7 @@ export const puckConfig = {
     Nav,
     Footer,
     Repeater,
-    PageContent,
+    ContentSlot,
+    RichText,
   },
 };

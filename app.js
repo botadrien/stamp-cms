@@ -9,8 +9,7 @@ let currentProvider = null; // entrée de GIT_PROVIDERS (voir providers.js) du f
 
 // L'attribut data-theme est déjà posé au plus tôt par le script inline dans <head> (avant
 // même que ce fichier ne charge, pour éviter un flash) — ici on ne fait qu'aligner l'icône
-// du bouton dessus, et prévenir l'éditeur riche (île React séparée, voir editor.jsx) au cas
-// où il serait monté au moment du bascule.
+// du bouton dessus.
 function applyThemeToggleIcon() {
   const btn = document.getElementById("themeToggle");
   if (!btn) return;
@@ -77,7 +76,7 @@ function renderStatus(message, type = "info") {
 // cours/à venir (timer de débounce, build en vol dont le résultat serait jeté de toute
 // façon via le garde previewState !== state dans triggerPreviewBuild()).
 function leaveEditor() {
-  RichEditor.unmount();
+  PuckContentEditor.unmount();
   PuckLayoutEditor.unmount();
   if (previewState) clearTimeout(previewState.debounceTimer);
   previewState = null;
@@ -372,8 +371,8 @@ async function createSite() {
 
     const encoder = new TextEncoder();
     await api.publishFiles(owner, repo.name, "main", {
-      "content/_index.md": encoder.encode(buildIndexStub(repo.name)),
-      "content/blog/_index.md": encoder.encode(buildBlogIndexStub()),
+      "content/_index.puck.json": encoder.encode(buildIndexStub(repo.name)),
+      "content/blog/_index.puck.json": encoder.encode(buildBlogIndexStub()),
     });
 
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
@@ -853,11 +852,11 @@ async function openEditor(owner, name, path) {
   appEl.innerHTML = renderStatus("Chargement…", "info");
 
   let sha = null;
-  let content = "";
+  let data = defaultContentData(path);
   try {
     const file = await api.getFile(owner, name, path, "main", { silent404: true });
     sha = file.sha;
-    content = stripFrontMatter(decodeBase64Utf8(file.content));
+    data = JSON.parse(decodeBase64Utf8(file.content));
   } catch (err) {
     if (err.status !== 404) {
       const backHash = siteHash(owner, name);
@@ -871,11 +870,12 @@ async function openEditor(owner, name, path) {
     }
   }
 
-  await renderEditor(path, sha, content);
+  renderEditor(path, sha, data);
 }
 
-async function renderEditor(path, fileSha, fileContent) {
+function renderEditor(path, fileSha, data) {
   const backHash = siteHash(currentRepo.owner, currentRepo.name);
+  const kind = path.startsWith("content/blog/") ? "post" : "page";
   appEl.classList.add("editor-split");
   appEl.innerHTML = `
     <div class="card editor-pane">
@@ -906,13 +906,13 @@ async function renderEditor(path, fileSha, fileContent) {
     repo: currentRepo.name,
     path,
     previewTarget: pageUrl(path),
-    getDraft: () => RichEditor.getMarkdown(),
+    getDraft: () => JSON.stringify(PuckContentEditor.getData()),
     building: false,
     dirty: false,
     debounceTimer: null,
   };
 
-  await RichEditor.mount("editorMount", fileContent, onEditorContentChange);
+  PuckContentEditor.mount("editorMount", { data, kind, onChange: onEditorContentChange });
   triggerPreviewBuild();
 }
 
@@ -1008,7 +1008,7 @@ function reloadPreviewFrame(state) {
 
 async function saveFile() {
   const path = renderEditor.currentPath;
-  const content = ensureFrontMatter(await RichEditor.getMarkdown(), path);
+  const content = JSON.stringify(PuckContentEditor.getData(), null, 2);
   const statusEl = document.getElementById("editorStatus");
   statusEl.innerHTML = renderStatus("Enregistrement…", "info");
 

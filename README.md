@@ -18,8 +18,8 @@ Gratuit à 100% et toujours :
 
 - **Connexion sans serveur** : OAuth2 + PKCE directement vers Codeberg ou GitLab (pas besoin de bridge), ou jeton d'accès personnel collé à la main pour GitHub (voir "Forges git" ci-dessous pour pourquoi GitHub n'a pas droit au même flow OAuth). Droits d'accès = rôles natifs du fournisseur choisi.
 - **Multi-fournisseur** : Codeberg, GitHub et GitLab (gitlab.com uniquement, pas de self-hosted), via une couche d'abstraction commune (`api.js`/`github-api.js`/`gitlab-api.js`/`providers.js`) pensée pour qu'ajouter un fournisseur de plus n'exige pas de refonte.
-- **Édition riche** : éditeur visuel similaire à Notion ([BlockNote.js](https://www.blocknote.js.org/) sur [ProseMirror](https://prosemirror.net/))
-  Contenu stocké en Markdown, source de vérité dans le dépôt Git, commit direct à chaque enregistrement.
+- **Édition riche** : éditeur [Puck](https://puckeditor.com/) (même moteur que la mise en page, voir plus bas) restreint à un bloc de texte riche par page/article, avec panneau de champs pour le titre/la date.
+  Contenu stocké en JSON Puck, source de vérité dans le dépôt Git, commit direct à chaque enregistrement — le corps de chaque page/article est injecté au rendu dans le gabarit partagé de son type de route (voir `ssg-src/template-merge.js`).
 - **Génération du site** avec un renderer maison piloté par [Puck](https://puckeditor.com/) (`ssg-src/`), exécuté **dans le navigateur** à chaque publication — voir `docs/plan-puck-ssg.md` pour la conception complète (remplace l'ancien pipeline Zola/Tera).
 - **Aperçu en direct** : pendant l'édition, un volet à côté de l'éditeur montre le site réellement généré (nav, mise en page) à partir du brouillon en cours — rien n'est publié tant qu'on n'a pas cliqué sur "Publier".
 - **Publication en un clic** : chaque "Publier" compile le site et le publie sur la branche `pages` du dépôt.
@@ -124,8 +124,8 @@ C’est l'architecture "normale" pour un générateur de site statiques : compil
 ### Réutiliser l'éditeur Gutenberg de WordPress
 
 Idée : reprendre `@wordpress/block-editor` (npm, utilisable hors WordPress via des projets comme [isolated-block-editor](https://github.com/Automattic/isolated-block-editor)) plutôt que redévelopper un éditeur par blocs.
-Écarté : licence GPLv2+ (copyleft fort, tension avec une marketplace de plugins/thèmes payants), couplage à une API REST WordPress à démonter, format de sérialisation en HTML à commentaires plutôt que Markdown (contredit "contenu stocké en Markdown" ci-dessus), dépendances plus lourdes que BlockNote.
-Et surtout : ça n'évite pas le vrai travail (mapper chaque bloc vers une macro Tera pour le rendu publié) — le rendu WordPress passe par PHP, inutilisable tel quel avec Zola.
+Écarté : licence GPLv2+ (copyleft fort, tension avec une marketplace de plugins/thèmes payants), couplage à une API REST WordPress à démonter, format de sérialisation en HTML à commentaires propre à WordPress.
+Et surtout : ça n'évite pas le vrai travail (mapper chaque bloc vers un composant Puck pour le rendu publié) — le rendu WordPress passe par PHP, inutilisable tel quel avec ce renderer.
 
 ## Détails techniques
 
@@ -151,12 +151,37 @@ GitLab identifie aussi ses projets par un chemin `owner/repo` URL-encodé en un 
 Le site est rendu par un renderer maison piloté par [Puck](https://puckeditor.com/)
 (`ssg-src/`, voir `docs/plan-puck-ssg.md` pour la conception complète), en JS pur —
 pas de binaire WASM, pas de shim WASI. `ssg-src/content-loader.js` parse
-`content/*.md` (front matter TOML + Markdown -> HTML via `remark`), `ssg-src/context.js`
-construit le contexte de données, `ssg-src/resolver.js` résout les bindings des gabarits
-Puck, et `ssg-src/renderer.jsx` orchestre le tout : parcourt les routes du site, rend
-chaque page via `<Render>` de Puck + `renderToStaticMarkup`, génère `rss.xml`/`sitemap.xml`.
+`content/*.puck.json` (chaque page/article est un objet `Data` Puck : `root.props` pour
+le titre/la date, `content[]` pour le corps — voir "Édition de contenu" plus bas),
+`ssg-src/context.js` construit le contexte de données, `ssg-src/resolver.js` résout les
+bindings des gabarits Puck, et `ssg-src/renderer.jsx` orchestre le tout : parcourt les
+routes du site, fusionne le corps propre à chaque page/article dans le gabarit partagé de
+son type de route (`ssg-src/template-merge.js`), rend chaque page via `<Render>` de Puck +
+`renderToStaticMarkup`, génère `rss.xml`/`sitemap.xml`.
 Bundlé pour le navigateur via `editor-src/ssg-builder.js` -> `ssg-builder.bundle.js`
-(global `SsgBuilder`), même principe que `editor.jsx`/`RichEditor`.
+(global `SsgBuilder`), même principe que `puck-content-editor.jsx`/`PuckContentEditor`.
+
+### Édition de contenu
+
+Chaque page/article est édité avec Puck (`editor-src/puck-content-editor.jsx`, global
+`PuckContentEditor`) — une Config Puck restreinte à un seul composant, `RichText`
+(`ssg-src/components/rich-text.jsx`), qui expose le champ natif `type: "richtext"` de
+Puck (Tiptap embarqué). Restreinte volontairement : impossible d'y glisser un
+Nav/Hero/Footer, le contenu d'une page/d'un article reste un corps de texte — nav/hero/
+footer restent définis une fois par type de route (voir "Éditeur de mise en page Puck"
+plus bas). Titre (et date pour un article) s'éditent via le panneau de champs racine de
+Puck (`root.fields`), pas un champ séparé hors du canvas.
+
+Le champ richtext s'édite depuis le panneau de champs (sidebar droite), pas par clic
+direct dans le canvas : le canvas n'affiche qu'un aperçu en lecture seule du corps (limite
+du mode `iframe: { enabled: false }`, nécessaire pour que le contexte React `SsgContext`
+traverse jusqu'aux composants bindables — voir "Éditeur de mise en page Puck").
+
+Au clic sur "Publier", le contenu (`JSON.stringify` de l'objet `Data` de l'article/la
+page) est commité sur `main` à `content/<slug>.puck.json` /
+`content/blog/<slug>.puck.json`, puis le site entier est régénéré et publié sur `pages`
+— même flux qu'avant (voir "Publication en un clic" plus haut), format de fichier
+seulement.
 
 Un site retombe sur le gabarit par défaut (`ssg-src/default-templates.js`) tant qu'il
 n'a pas été personnalisé via l'éditeur de mise en page (voir section dédiée ci-dessous).
@@ -212,7 +237,7 @@ Le résultat (`{ chemin: Uint8Array }` pour tout le dépôt) est mis en cache lo
 
 ### Domaine personnalisé
 
-Réglage stocké dans un nouveau fichier **`site.toml`** à la racine de chaque dépôt de site (branche `main`) — première brique du futur "fichier structuré de config du site" évoqué dans "Architecture cœur/thèmes/plugins" plus bas. Jamais lu par le renderer (ni `content/`, ni le reste du dépôt), donc jamais publié sur la branche `pages` : reste un fichier source, comme `content/*.md`. Lu/écrit via `getCustomDomain()`/`setCustomDomain()` (`site-builder.js`), et propagé dans le `baseUrl` passé au renderer à chaque publication (`rebuildAndPublishSite()`).
+Réglage stocké dans un nouveau fichier **`site.toml`** à la racine de chaque dépôt de site (branche `main`) — première brique du futur "fichier structuré de config du site" évoqué dans "Architecture cœur/thèmes/plugins" plus bas. Jamais lu par le renderer (ni `content/`, ni le reste du dépôt), donc jamais publié sur la branche `pages` : reste un fichier source, comme `content/*.puck.json`. Lu/écrit via `getCustomDomain()`/`setCustomDomain()` (`site-builder.js`), et propagé dans le `baseUrl` passé au renderer à chaque publication (`rebuildAndPublishSite()`).
 
 **Sous-domaines uniquement** (ex. `www.exemple.com`) — pas de domaine racine/apex, pour éviter la variété de mécanismes A/AAAA/ALIAS/ANAME selon le registrar. Chaque fournisseur a un mécanisme d'activation différent (vérifié contre leurs docs officielles) :
 - **GitHub Pages** : un simple champ `cname` sur l'API Pages (`PUT /repos/{owner}/{repo}/pages`) — pas de fichier `CNAME` à committer.
@@ -230,9 +255,9 @@ Rien n'est publié sur le fournisseur tant qu'on ne clique pas sur "Publier" —
 
 ### Inclusion des packages JS
 
-BlockNote (React + ProseMirror + Mantine) est trop imbriqué pour un `<script>`/CDN sans bundler (duplication de singletons ProseMirror).
-`ssg-src/renderer.jsx` (React + Puck) et l'éditeur de mise en page (`editor-src/puck-layout-editor.jsx`, React + `<Puck>`) ont besoin du même traitement.
-`npm run build` (esbuild) produit trois bundles IIFE : `editor.bundle.js`/`.css`, `ssg-builder.bundle.js` et `puck-layout-editor.bundle.js`/`.css` — le second reçoit un `Buffer` global injecté (`--inject:editor-src/buffer-shim.js`, package `buffer`) car `gray-matter` y fait référence sans condition, un global Node absent des navigateurs. Les trois bundles embarquent chacun leur propre copie de React (aucun module partagé entre bundles esbuild IIFE séparés) — voir "Éditeur de mise en page Puck" plus haut pour pourquoi ça impose de réimporter la palette de composants dans `puck-layout-editor.bundle.js` plutôt que de la réutiliser depuis `ssg-builder.bundle.js`.
+Puck (React + `@puckeditor/core`) est trop imbriqué pour un `<script>`/CDN sans bundler (duplication de singletons React).
+`ssg-src/renderer.jsx`, l'éditeur de mise en page (`editor-src/puck-layout-editor.jsx`, React + `<Puck>`) et l'éditeur de contenu (`editor-src/puck-content-editor.jsx`, idem, Config restreinte) ont tous besoin du même traitement.
+`npm run build` (esbuild) produit trois bundles IIFE : `ssg-builder.bundle.js`, `puck-layout-editor.bundle.js`/`.css` et `puck-content-editor.bundle.js`/`.css`. Les trois bundles embarquent chacun leur propre copie de React (aucun module partagé entre bundles esbuild IIFE séparés) — voir "Éditeur de mise en page Puck" plus haut pour pourquoi ça impose de réimporter la palette de composants dans `puck-layout-editor.bundle.js`/`puck-content-editor.bundle.js` plutôt que de la réutiliser depuis `ssg-builder.bundle.js`.
 Il génère ensuite `index.html` depuis `index.template.html` (le fichier à éditer, `index.html` est gitignore).
 Chaque script/style local reçoit un `?v=<hash du commit>`, pour éviter le cache périmé après déploiement.
 Le reste de l'app : scripts classiques, sans build.

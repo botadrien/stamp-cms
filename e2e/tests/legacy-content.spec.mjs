@@ -1,10 +1,11 @@
-// Test e2e réel : un fichier content/*.md existant sans front matter (créé avant que ça
-// soit automatique, ou modifié hors du POC) ne doit pas faire échouer la republication de
-// tout le site quand on publie une AUTRE page.
+// Test e2e réel : un fichier content/*.puck.json existant mais illisible (JSON invalide,
+// écrit hors du CMS ou corrompu) ne doit pas faire échouer la republication de tout le
+// site quand on publie une AUTRE page.
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { typeInRichTextEditor } from "../editor-helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const seed = JSON.parse(readFileSync(path.join(__dirname, "..", ".seed.json"), "utf-8"));
@@ -40,13 +41,13 @@ test("une page existante sans front matter n'empêche pas de publier une autre p
     data: { new_branch_name: "pages", old_branch_name: "main" },
   });
 
-  // Fichier "à l'ancienne" créé directement via l'API, sans front matter — comme s'il
-  // avait été écrit avant l'ajout automatique du front matter.
+  // Fichier illisible créé directement via l'API — JSON invalide, comme un fichier
+  // corrompu ou modifié hors du CMS.
   await page.request.post(
-    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/legacy.md`,
+    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/legacy.puck.json`,
     {
       headers: authHeaders,
-      data: { content: Buffer.from("Contenu sans front matter.").toString("base64"), message: "legacy", branch: "main" },
+      data: { content: Buffer.from("pas du JSON valide").toString("base64"), message: "legacy", branch: "main" },
     }
   );
 
@@ -67,9 +68,7 @@ test("une page existante sans front matter n'empêche pas de publier une autre p
   await addPageCard.locator("#newPageTitle").fill("legacy-content-test");
   await addPageCard.getByRole("button", { name: "Créer" }).click();
 
-  const editor = page.locator("#editorMount [contenteditable=true]");
-  await editor.click();
-  await page.keyboard.type("Nouvelle page malgré le fichier legacy.");
+  await typeInRichTextEditor(page, "Nouvelle page malgré le fichier legacy.");
   await page.getByRole("button", { name: "Publier" }).click();
 
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });

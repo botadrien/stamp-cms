@@ -32,30 +32,25 @@ const LAYOUT_TEMPLATE_LABELS = {
   blogIndex: "Index du blog",
 };
 
-// URL d'une page à partir de son chemin content/ (content/a-propos.md -> /a-propos/) —
-// même convention que pageUrl() dans ssg-src/content-loader.js (dupliquée ici plutôt
-// qu'importée : ce fichier reste un script classique global, pas un module).
+// URL d'une page à partir de son chemin content/ (content/a-propos.puck.json ->
+// /a-propos/) — même convention que pageUrl() dans ssg-src/content-loader.js (dupliquée
+// ici plutôt qu'importée : ce fichier reste un script classique global, pas un module).
 function pageUrl(path) {
-  return "/" + path.replace(/^content\//, "").replace(/\.md$/, "") + "/";
+  return "/" + path.replace(/^content\//, "").replace(/\.puck\.json$/, "") + "/";
 }
 
-// content/_index.md : front matter seul, plus de corps Markdown — la page d'accueil
-// n'est plus éditée via l'éditeur riche (le gabarit "home" par défaut, voir
+// content/_index.puck.json : titre seul, pas de corps — la page d'accueil n'est pas
+// éditée via l'éditeur de contenu (le gabarit "home" par défaut, voir
 // ssg-src/default-templates.js, se charge de l'affichage). Le titre est le seul réglage
 // éditable de l'accueil pour l'instant (voir getBlogTitle/setBlogTitle).
 function buildIndexStub(title) {
-  return `+++
-title = "${escapeToml(title)}"
-+++
-`;
+  return JSON.stringify({ root: { props: { title } } }, null, 2);
 }
 
-// content/blog/_index.md : section blog, structurelle (pas encore éditable depuis le CMS).
+// content/blog/_index.puck.json : section blog, structurelle (pas encore éditable depuis
+// le CMS).
 function buildBlogIndexStub() {
-  return `+++
-title = "Blog"
-+++
-`;
+  return JSON.stringify({ root: { props: { title: "Blog" } } }, null, 2);
 }
 
 function decodeBase64Utf8(base64) {
@@ -63,75 +58,73 @@ function decodeBase64Utf8(base64) {
 }
 
 function titleFromPath(path) {
-  const base = path.split("/").pop().replace(/\.md$/, "");
+  const base = path.split("/").pop().replace(/\.puck\.json$/, "");
   const words = base.replace(/[-_]+/g, " ").trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-// Le loader de contenu (ssg-src/content-loader.js) attend un front matter ("+++" en
-// tête) sur tout fichier content/*.md — notre éditeur riche n'en écrit pas. On l'ajoute
-// automatiquement si absent, de façon invisible pour l'utilisateur·rice (titre déduit du
-// premier titre tapé, sinon du nom de fichier). Un article de blog (content/blog/...)
-// reçoit une date, pas une page standalone.
-function ensureFrontMatter(markdown, path) {
-  if (/^(\+\+\+|---)\s*$/m.test(markdown.split("\n", 1)[0])) return markdown;
-  const heading = markdown.match(/^#\s+(.+)$/m);
-  const title = (heading ? heading[1] : titleFromPath(path)).replace(/"/g, '\\"');
-  if (path.startsWith("content/blog/")) {
-    const date = new Date().toISOString().slice(0, 10);
-    return `+++\ntitle = "${title}"\ndate = ${date}\n+++\n\n${markdown}`;
+// Titre lisible d'une page/d'un article : celui de root.props.title si présent, sinon
+// déduit du nom de fichier (voir titleFromPath). Résiste à un JSON invalide (fichier
+// corrompu ou modifié hors du CMS) plutôt que de faire planter tout l'écran de liste pour
+// une seule entrée.
+function extractTitle(raw, path) {
+  try {
+    const title = JSON.parse(raw)?.root?.props?.title;
+    return typeof title === "string" && title ? title : titleFromPath(path);
+  } catch {
+    return titleFromPath(path);
   }
-  return `+++\ntitle = "${title}"\n+++\n\n${markdown}`;
 }
 
-// Retire le front matter avant de charger le contenu dans l'éditeur riche — ce n'est pas
-// à l'utilisateur·rice de voir/éditer ce bloc TOML, ensureFrontMatter() le régénère à la
-// publication.
-function stripFrontMatter(markdown) {
-  const match = markdown.match(/^(\+\+\+|---)\r?\n[\s\S]*?\r?\n\1\s*\r?\n?/);
-  return match ? markdown.slice(match[0].length) : markdown;
+// Contenu Puck par défaut d'une page/d'un article tout juste créé·e (pas encore publié·e,
+// donc pas encore sur main — voir openEditor() dans app.js) : un unique bloc RichText
+// vide, plus une date du jour pour un article de blog (même règle que l'ancien
+// ensureFrontMatter : seuls les articles ont une date).
+function defaultContentData(path) {
+  const isPost = path.startsWith("content/blog/");
+  const props = { title: titleFromPath(path) };
+  if (isPost) props.date = new Date().toISOString().slice(0, 10);
+  return {
+    root: { props },
+    // body non vide (un paragraphe vide) plutôt qu'une chaîne "" : un bloc RichText sans
+    // contenu a une hauteur nulle dans le canvas Puck (voir RichTextRenderFallback,
+    // @puckeditor/core) et devient impossible à sélectionner/cliquer pour commencer à
+    // écrire.
+    content: [{ type: "RichText", props: { id: `${slugify(titleFromPath(path))}-body`, body: "<p></p>" } }],
+  };
 }
 
 function encodeUtf8Base64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
-// Récupère tout le contenu de content/ sur main et retourne { "content/x.md": "...", ... }
-// — décodé depuis le cache local de tout le dépôt (voir repo-cache.js ; getRepoFiles ne
-// retélécharge que si le sha HEAD distant a changé depuis le dernier appel). Utilisé pour
-// le *build* — inclut les _index.md (sections), contrairement à listContentPages() qui
-// les exclut de la liste "pages" éditable.
+// Récupère tout le contenu de content/ sur main et retourne
+// { "content/x.puck.json": "...", ... } — décodé depuis le cache local de tout le dépôt
+// (voir repo-cache.js ; getRepoFiles ne retélécharge que si le sha HEAD distant a changé
+// depuis le dernier appel). Utilisé pour le *build* — inclut les _index.puck.json
+// (sections), contrairement à listContentPages() qui les exclut de la liste "pages"
+// éditable.
 async function fetchContentFiles(owner, repo) {
   const repoFiles = await getRepoFiles(owner, repo, api);
   const files = {};
   for (const [path, bytes] of Object.entries(repoFiles)) {
-    if (!path.startsWith("content/") || !path.endsWith(".md")) continue;
-    // Garantit un front matter même sur des pages créées avant que ça soit automatique
-    // (ou modifiées hors du CMS) — le loader de contenu (ssg-src/content-loader.js)
-    // refuse tout fichier content/*.md qui en serait dépourvu.
-    files[path] = ensureFrontMatter(new TextDecoder().decode(bytes), path);
+    if (!path.startsWith("content/") || !path.endsWith(".puck.json")) continue;
+    files[path] = new TextDecoder().decode(bytes);
   }
   return files;
 }
 
-// Titre lisible d'une page : celui du front matter TOML si présent, sinon déduit du nom
-// de fichier (voir titleFromPath).
-function extractTitle(markdown, path) {
-  const match = markdown.match(/^title\s*=\s*"(.*)"\s*$/m);
-  return match ? match[1].replace(/\\"/g, '"') : titleFromPath(path);
-}
-
 // Liste les pages/articles existants (chemin + titre + type) pour l'écran "pages du
-// site" — exclut les _index.md (structurels : accueil et section blog, pas des pages
-// éditables via l'éditeur riche). Réutilise fetchContentFiles() (donc le même cache
-// local) plutôt qu'un parcours séparé.
+// site" — exclut les _index.puck.json (structurels : accueil et section blog, pas des
+// pages éditables). Réutilise fetchContentFiles() (donc le même cache local) plutôt qu'un
+// parcours séparé.
 async function listContentPages(owner, repo) {
   const contentFiles = await fetchContentFiles(owner, repo);
   const pages = Object.entries(contentFiles)
-    .filter(([path]) => !path.endsWith("_index.md"))
-    .map(([path, markdown]) => ({
+    .filter(([path]) => !path.endsWith("_index.puck.json"))
+    .map(([path, raw]) => ({
       path,
-      title: extractTitle(markdown, path),
+      title: extractTitle(raw, path),
       type: path.startsWith("content/blog/") ? "post" : "page",
     }));
   pages.sort((a, b) => a.title.localeCompare(b.title));
@@ -152,26 +145,26 @@ function slugify(raw) {
     .replace(/^-|-$/g, "");
 }
 
-// Choisit un chemin <dirPrefix><slug>.md libre pour une nouvelle page/article, en
+// Choisit un chemin <dirPrefix><slug>.puck.json libre pour une nouvelle page/article, en
 // suffixant -2, -3... si le titre saisi donne un slug déjà utilisé. dirPrefix distingue
 // page standalone ("content/") et article de blog ("content/blog/").
 function nextAvailablePagePath(title, existingPaths, dirPrefix = "content/") {
   const base = slugify(title) || "page";
-  let path = `${dirPrefix}${base}.md`;
+  let path = `${dirPrefix}${base}.puck.json`;
   let n = 2;
   while (existingPaths.includes(path)) {
-    path = `${dirPrefix}${base}-${n}.md`;
+    path = `${dirPrefix}${base}-${n}.puck.json`;
     n += 1;
   }
   return path;
 }
 
-// Titre actuel du blog (front matter de content/_index.md), pour pré-remplir l'écran
-// "Réglages du site". Nom du dépôt par défaut si le fichier n'existe pas encore.
+// Titre actuel du blog (root.props.title de content/_index.puck.json), pour pré-remplir
+// l'écran "Réglages du site". Nom du dépôt par défaut si le fichier n'existe pas encore.
 async function getBlogTitle(owner, repo) {
   try {
-    const file = await api.getFile(owner, repo, "content/_index.md", "main");
-    return extractTitle(decodeBase64Utf8(file.content), "content/_index.md");
+    const file = await api.getFile(owner, repo, "content/_index.puck.json", "main");
+    return extractTitle(decodeBase64Utf8(file.content), "content/_index.puck.json");
   } catch (err) {
     if (err.status === 404) return repo;
     throw err;
@@ -181,20 +174,20 @@ async function getBlogTitle(owner, repo) {
 async function setBlogTitle(owner, repo, title) {
   let sha = null;
   try {
-    const existing = await api.getFile(owner, repo, "content/_index.md", "main", { silent404: true });
+    const existing = await api.getFile(owner, repo, "content/_index.puck.json", "main", { silent404: true });
     sha = existing.sha;
   } catch (err) {
     if (err.status !== 404) throw err;
   }
-  await api.saveFile(owner, repo, "content/_index.md", buildIndexStub(title), {
+  await api.saveFile(owner, repo, "content/_index.puck.json", buildIndexStub(title), {
     sha,
     message: "Mise à jour du titre du blog",
   });
 }
 
 // Domaine personnalisé du site (voir README, section "Domaine personnalisé") : stocké
-// dans un fichier dédié à la racine du dépôt plutôt que dans le front matter de
-// content/_index.md (pas de lien logique avec le titre du blog) — première brique du
+// dans un fichier dédié à la racine du dépôt plutôt que dans le titre de
+// content/_index.puck.json (pas de lien logique avec le titre du blog) — première brique du
 // futur "fichier structuré de config du site" évoqué dans README ("Architecture
 // cœur/thèmes/plugins"). Jamais lu par le renderer (ni content/, ni le reste du dépôt) :
 // reste un fichier source sur main, jamais publié sur la branche pages.
@@ -273,23 +266,24 @@ function resolveBaseUrl(owner, repo, repoFiles) {
 // les liens de nav pointeraient en absolu vers le vrai domaine de prod (qui n'a pas
 // encore ce contenu), hors du scope intercepté par sw.js.
 async function buildSiteFiles(owner, repo, repoFiles, baseUrl, drafts = {}) {
-  const contentPaths = new Set(Object.keys(repoFiles).filter((p) => p.startsWith("content/") && p.endsWith(".md")));
+  const contentPaths = new Set(
+    Object.keys(repoFiles).filter((p) => p.startsWith("content/") && p.endsWith(".puck.json")),
+  );
   for (const path of Object.keys(drafts)) {
-    if (path.startsWith("content/") && path.endsWith(".md")) contentPaths.add(path);
+    if (path.startsWith("content/") && path.endsWith(".puck.json")) contentPaths.add(path);
   }
 
-  const contentText = {};
+  const contentJson = {};
   for (const path of contentPaths) {
-    const raw = path in drafts ? drafts[path] : new TextDecoder().decode(repoFiles[path]);
-    contentText[path] = ensureFrontMatter(raw, path);
+    contentJson[path] = path in drafts ? drafts[path] : new TextDecoder().decode(repoFiles[path]);
   }
-  if (!contentText["content/_index.md"]) contentText["content/_index.md"] = buildIndexStub(repo);
-  if (!contentText["content/blog/_index.md"]) contentText["content/blog/_index.md"] = buildBlogIndexStub();
+  if (!contentJson["content/_index.puck.json"]) contentJson["content/_index.puck.json"] = buildIndexStub(repo);
+  if (!contentJson["content/blog/_index.puck.json"]) contentJson["content/blog/_index.puck.json"] = buildBlogIndexStub();
 
-  const title = extractTitle(contentText["content/_index.md"], "content/_index.md");
+  const title = extractTitle(contentJson["content/_index.puck.json"], "content/_index.puck.json");
 
   return SsgBuilder.buildSite({
-    files: contentText,
+    files: contentJson,
     title,
     baseUrl,
     templates: loadLayoutTemplates(repoFiles, drafts),
@@ -370,8 +364,8 @@ async function buildLayoutEditorData(owner, repo, key) {
 
   const contentFiles = await fetchContentFiles(owner, repo);
   const collections = await SsgBuilder.loadCollections(contentFiles);
-  const title = contentFiles["content/_index.md"]
-    ? extractTitle(contentFiles["content/_index.md"], "content/_index.md")
+  const title = contentFiles["content/_index.puck.json"]
+    ? extractTitle(contentFiles["content/_index.puck.json"], "content/_index.puck.json")
     : repo;
 
   const contextOpts = { title, baseUrl, collections };

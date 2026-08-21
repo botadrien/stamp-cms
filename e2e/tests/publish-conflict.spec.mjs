@@ -5,6 +5,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { typeInRichTextEditor } from "../editor-helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const seed = JSON.parse(readFileSync(path.join(__dirname, "..", ".seed.json"), "utf-8"));
@@ -34,15 +35,13 @@ test("publier une page modifiée entre-temps affiche un conflit, pas une erreur 
   await expect(repoItem).toBeVisible({ timeout: 10_000 });
   await repoItem.getByRole("button", { name: "Ouvrir" }).click();
 
-  const testPath = "content/conflict-test.md";
+  const testPath = "content/conflict-test.puck.json";
   const addPageCard = page.locator(".card", { has: page.locator("#newPageTitle") });
   await addPageCard.locator("#newPageTitle").fill("conflict-test");
   await addPageCard.getByRole("button", { name: "Créer" }).click();
 
   // Première publication : crée le fichier.
-  const editor = page.locator("#editorMount [contenteditable=true]");
-  await editor.click();
-  await page.keyboard.type("Version initiale");
+  await typeInRichTextEditor(page, "Version initiale");
   await page.getByRole("button", { name: "Publier" }).click();
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 
@@ -66,8 +65,7 @@ test("publier une page modifiée entre-temps affiche un conflit, pas une erreur 
   );
 
   // On republie depuis le POC sans avoir rechargé : le sha local est maintenant périmé.
-  await editor.click();
-  await page.keyboard.type(" — suite écrite sans recharger");
+  await typeInRichTextEditor(page, " — suite écrite sans recharger");
   await page.getByRole("button", { name: "Publier" }).click();
 
   await expect(page.locator(".status.error")).toContainText("modifiée entre-temps", { timeout: 10_000 });

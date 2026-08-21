@@ -5,6 +5,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { typeInRichTextEditor } from "../editor-helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const seed = JSON.parse(readFileSync(path.join(__dirname, "..", ".seed.json"), "utf-8"));
@@ -42,7 +43,7 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
 
   await repoItem.getByRole("button", { name: "Ouvrir" }).click();
 
-  const testPath = "content/e2e-test.md";
+  const testPath = "content/e2e-test.puck.json";
   // Deux formulaires "Créer" sur cet écran (page standalone / article de blog) —
   // scoper au bloc contenant le champ titre de la page pour lever l'ambiguïté.
   const addPageCard = page.locator(".card", { has: page.locator("#newPageTitle") });
@@ -50,9 +51,7 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
   await addPageCard.getByRole("button", { name: "Créer" }).click();
 
   const text = `Écrit automatiquement le ${new Date().toISOString()} — accents: éàçù.`;
-  const editor = page.locator("#editorMount [contenteditable=true]");
-  await editor.click();
-  await page.keyboard.type(text);
+  await typeInRichTextEditor(page, text);
   await page.getByRole("button", { name: "Publier" }).click();
 
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });

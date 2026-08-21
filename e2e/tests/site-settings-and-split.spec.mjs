@@ -5,6 +5,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { typeInRichTextEditor } from "../editor-helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const seed = JSON.parse(readFileSync(path.join(__dirname, "..", ".seed.json"), "utf-8"));
@@ -73,16 +74,16 @@ test("modifier le titre du blog depuis Réglages du site republie le site", asyn
     timeout: 60_000,
   });
 
-  // Vérification indépendante : le titre a vraiment atterri dans le front matter de
-  // content/_index.md sur main, via l'API.
+  // Vérification indépendante : le titre a vraiment atterri dans content/_index.puck.json
+  // sur main, via l'API.
   const res = await page.request.get(
-    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/_index.md`,
+    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/_index.puck.json`,
     { headers: { Authorization: `token ${seed.token}` } }
   );
   expect(res.ok()).toBeTruthy();
   const file = await res.json();
   const decoded = Buffer.from(file.content, "base64").toString("utf-8");
-  expect(decoded).toContain(`title = "${newTitle}"`);
+  expect(JSON.parse(decoded)).toMatchObject({ root: { props: { title: newTitle } } });
 });
 
 test("une page standalone et un article de blog atterrissent à des chemins content/ différents", async ({
@@ -100,8 +101,7 @@ test("une page standalone et un article de blog atterrissent à des chemins cont
   const addPageCard = page.locator(".card", { has: page.locator("#newPageTitle") });
   await addPageCard.locator("#newPageTitle").fill("page standalone e2e");
   await addPageCard.getByRole("button", { name: "Créer" }).click();
-  await page.locator("#editorMount [contenteditable=true]").click();
-  await page.keyboard.type("Contenu de la page standalone.");
+  await typeInRichTextEditor(page, "Contenu de la page standalone.");
   await page.getByRole("button", { name: "Publier" }).click();
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 
@@ -111,21 +111,20 @@ test("une page standalone et un article de blog atterrissent à des chemins cont
   await expect(addPostCard.locator("#newPostTitle")).toBeVisible({ timeout: 10_000 });
   await addPostCard.locator("#newPostTitle").fill("article de blog e2e");
   await addPostCard.getByRole("button", { name: "Créer" }).click();
-  await page.locator("#editorMount [contenteditable=true]").click();
-  await page.keyboard.type("Contenu de l'article de blog.");
+  await typeInRichTextEditor(page, "Contenu de l'article de blog.");
   await page.getByRole("button", { name: "Publier" }).click();
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 
   // Vérifications indépendantes via l'API : chemins réels sur main.
   const authHeaders = { Authorization: `token ${seed.token}` };
   const pageRes = await page.request.get(
-    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/page-standalone-e2e.md`,
+    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/page-standalone-e2e.puck.json`,
     { headers: authHeaders }
   );
   expect(pageRes.ok()).toBeTruthy();
 
   const postRes = await page.request.get(
-    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/blog/article-de-blog-e2e.md`,
+    `${seed.instanceUrl}/api/v1/repos/${seed.repoOwner}/${repoName}/contents/content/blog/article-de-blog-e2e.puck.json`,
     { headers: authHeaders }
   );
   expect(postRes.ok()).toBeTruthy();

@@ -130,6 +130,15 @@ Le contenu du blog reste en Markdown : BlockNote → Markdown → front matter +
 parsé avec une lib Markdown JS (ex. `remark`) au moment du rendu — pas de WASM dans
 ce nouveau pipeline.
 
+> **Mise à jour (2026-08-21)** : décision inversée. BlockNote est retiré ; le contenu
+> (page/article) est désormais édité avec Puck lui-même (`editor-src/puck-content-editor.jsx`,
+> Config restreinte à un composant `RichText`) et stocké en JSON Puck
+> (`content/<slug>.puck.json` / `content/blog/<slug>.puck.json`), injecté au rendu dans
+> le slot `ContentSlot` du gabarit partagé de son type de route
+> (`ssg-src/template-merge.js`) — voir README "Édition de contenu" pour l'architecture
+> retenue. Choix assumé : simplifier vers un seul système d'édition plutôt que deux,
+> au prix du Markdown comme format de stockage lisible en diff Git.
+
 ### Style/thème
 
 Puck gère déjà couleurs/espacements comme des props de composant — ceux-ci peuvent
