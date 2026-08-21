@@ -47,11 +47,31 @@ const blogListProps = (id, { limit } = {}) => ({
   ],
 });
 
+const heroProps = (id, { eyebrow = "", title, subtitle = "", spacing = "md" }) => ({
+  id,
+  eyebrow,
+  title,
+  subtitle,
+  ctaLabel: "",
+  ctaUrl: "",
+  align: "left",
+  spacing,
+  backgroundColor: TOKENS.surface,
+  textColor: TOKENS.ink,
+});
+
 /** @type {PuckData} */
 const home = {
   root: { props: {} },
   content: [
     { type: "Nav", props: navProps("home-nav") },
+    {
+      type: "Hero",
+      props: heroProps("home-hero", {
+        title: "Bienvenue",
+        subtitle: "Retrouvez ici les derniers articles du site.",
+      }),
+    },
     { type: "Repeater", props: blogListProps("home-repeater", { limit: 5 }) },
     { type: "Footer", props: footerProps("home-footer") },
   ],
@@ -82,6 +102,7 @@ const blogIndex = {
   root: { props: {} },
   content: [
     { type: "Nav", props: navProps("blog-index-nav") },
+    { type: "Hero", props: heroProps("blog-index-hero", { title: "Blog", spacing: "sm" }) },
     { type: "Repeater", props: blogListProps("blog-index-repeater") },
     { type: "Footer", props: footerProps("blog-index-footer") },
   ],
