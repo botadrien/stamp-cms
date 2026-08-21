@@ -215,14 +215,24 @@ forme de contexte/resolver et la fusion devient ingérable.
 
 ### Phase 0 — contrat, séquentiel, avant tout (une seule track)
 
-Fixer, sans forcément tout implémenter :
+**✅ Fait** (commit à suivre) :
 
-- la forme exacte de l'objet `context` (`site`/`page`/`section`/`collections`),
-- la signature de `resolveProps(props, context)`,
-- la forme du descripteur `{ $bind: ... }` (lookup simple vs requête sur collection),
-- l'emplacement des fichiers (ex. `ssg-src/context.js`, `ssg-src/resolver.js`,
-  `ssg-src/components/`, `ssg-src/feeds/`),
-- l'ajout de `@measured/puck` (ou équivalent) au `package.json`.
+- dépendance ajoutée au `package.json` : **`@puckeditor/core`** (`^0.23.0`) — pas
+  `@measured/puck`, package déprécié, renommé courant 2025 ; toute doc/exemple Puck
+  trouvé en ligne sous l'ancien nom reste valable niveau API, juste changer l'import.
+- squelette de dossiers créé : `ssg-src/`, `ssg-src/components/`, `ssg-src/fields/`,
+  `ssg-src/feeds/`.
+- `ssg-src/types.js` : contrat figé en JSDoc typedefs (pas de TypeScript dans ce
+  projet) — `Context`, `Collections`, `ContentItem`, `BindDescriptor` (lookup et
+  collection), signature de `resolveProps`. Toutes les tracks importent ces types
+  plutôt que d'en redéfinir des variantes incompatibles.
+- Vérifié dans les types Puck (`node_modules/@puckeditor/core/dist/*.d.ts`) : le
+  champ `type: "slot"` (`SlotField`) existe bien pour Track C, et `type: "custom"`
+  (`CustomField`) est le bon point d'accroche pour le champ binding de Track B. Point
+  distinct à noter : Puck a son propre hook `resolveData` par composant (résolution
+  côté éditeur, ex. fetch de données externes) — sans rapport avec notre
+  `resolveProps` à nous, qui est une passe globale appliquée avant `<Render>`, pas un
+  hook enregistré par composant. Ne pas confondre les deux en implémentant Track B/C.
 
 ### Phase 1 — tracks parallèles
 
