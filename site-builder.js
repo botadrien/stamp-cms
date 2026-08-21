@@ -1,108 +1,29 @@
-// Orchestration du "vrai" site statique (Zola, via ZolaBuilder — voir
-// editor-src/zola-builder.js) : thème vendoré (themes/<nom>/, voir CURRENT_THEME
-// ci-dessous) + config.toml généré dynamiquement + contenu Markdown récupéré sur la
-// branche main, buildé en mémoire, publié sur la branche pages. Utilisé à la fois à la
-// création du site et à chaque "Publier".
-
-// Thème codé en dur pour l'instant (voir README.md, section "Génération du site") —
-// point d'accroche pour un choix de thème plus tard : il suffira de faire varier cette
-// valeur (et de vendorer d'autres thèmes sous themes/<nom>/, voir
-// scripts/fetch-theme-volks-typo.sh pour le modèle).
-const CURRENT_THEME = "volks-typo";
-
-let cachedThemeFiles = null;
-
-// Récupère tous les fichiers d'un thème vendoré (themes/<nom>/manifest.json + chaque
-// fichier qu'il liste) en Uint8Array — texte et binaire (polices, icônes) traités pareil,
-// Zola recopie les assets statiques tels quels de toute façon. Mis en cache en mémoire :
-// le thème ne change pas d'une publication à l'autre dans une session.
-async function loadThemeFiles(themeName) {
-  if (cachedThemeFiles) return cachedThemeFiles;
-
-  const manifestRes = await fetch(`themes/${themeName}/manifest.json`);
-  if (!manifestRes.ok) {
-    throw new Error(`Thème "${themeName}" introuvable.`);
-  }
-  const paths = await manifestRes.json();
-
-  const files = {};
-  await Promise.all(
-    paths.map(async (relPath) => {
-      const res = await fetch(`themes/${themeName}/${relPath}`);
-      if (!res.ok) {
-        throw new Error(`Fichier de thème manquant : ${relPath}`);
-      }
-      files[relPath] = new Uint8Array(await res.arrayBuffer());
-    })
-  );
-
-  cachedThemeFiles = files;
-  return files;
-}
+// Orchestration du "vrai" site statique (renderer Puck, via SsgBuilder — voir
+// editor-src/ssg-builder.js et ssg-src/renderer.jsx) : contenu Markdown récupéré sur la
+// branche main, buildé en mémoire avec les gabarits Puck par défaut
+// (ssg-src/default-templates.js), publié sur la branche pages. Utilisé à la fois à la
+// création du site et à chaque "Publier". Remplace l'ancien pipeline Zola/Tera (voir
+// docs/plan-puck-ssg.md) — plus de thème vendoré à copier dans chaque repo, plus de
+// config.toml généré : le renderer Puck ne dépend d'aucun fichier au-delà de content/.
 
 function escapeToml(str) {
   return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-// URL Zola d'une page à partir de son chemin content/ (content/a-propos.md -> /a-propos/).
+// URL d'une page à partir de son chemin content/ (content/a-propos.md -> /a-propos/) —
+// même convention que pageUrl() dans ssg-src/content-loader.js (dupliquée ici plutôt
+// qu'importée : ce fichier reste un script classique global, pas un module).
 function pageUrl(path) {
   return "/" + path.replace(/^content\//, "").replace(/\.md$/, "") + "/";
 }
 
-// config.toml régénéré à chaque publication — jamais préservé/édité à la main. `title`
-// vient du front matter de content/_index.md (seul réglage éditable pour l'instant, voir
-// getBlogTitle/setBlogTitle), `standalonePages` sert à construire le menu de nav
-// (identique sur toutes les pages, voir templates/partials/header.html du thème).
-function buildConfigToml({ title, baseUrl, standalonePages }) {
-  const menuItems = [
-    { name: "Accueil", url: "/" },
-    ...standalonePages.map((p) => ({ name: p.title, url: pageUrl(p.path) })),
-    { name: "Blog", url: "/blog/" },
-  ];
-  const mainMenuToml = menuItems
-    .map((item) => `  { name = "${escapeToml(item.name)}", url = "${escapeToml(item.url)}" },`)
-    .join("\n");
-
-  return `title = "${escapeToml(title)}"
-base_url = "${escapeToml(baseUrl)}"
-# Thème vendoré en CSS précompilé (static/main.css, voir
-# scripts/fetch-theme-volks-typo.sh) — plus de sass/ à compiler, ça évite de repayer ce
-# coût à chaque build (publication et surtout chaque aperçu live).
-compile_sass = false
-feed_filename = "rss.xml"
-
-taxonomies = [
-  { name = "categories" },
-  { name = "tags" },
-]
-
-[markdown.highlighting]
-theme = "nord"
-
-[extra]
-# Pas encore éditable depuis le CMS (voir écran "Réglages du site" pour le titre du
-# blog, le seul réglage exposé pour l'instant).
-author_name = "Auteur du site"
-list_images = true
-# footer.html boucle dessus sans le protéger d'un {% if %} — doit toujours être défini,
-# même vide (pas encore de réglage réseaux sociaux dans le CMS).
-social_links = []
-main_menu = [
-${mainMenuToml}
-]
-`;
-}
-
 // content/_index.md : front matter seul, plus de corps Markdown — la page d'accueil
-// n'est plus éditée via l'éditeur riche (voir templates/index.html du thème, réécrit
-// pour ce CMS). Le titre est le seul réglage éditable de l'accueil pour l'instant.
+// n'est plus éditée via l'éditeur riche (le gabarit "home" par défaut, voir
+// ssg-src/default-templates.js, se charge de l'affichage). Le titre est le seul réglage
+// éditable de l'accueil pour l'instant (voir getBlogTitle/setBlogTitle).
 function buildIndexStub(title) {
-  // Pas de sort_by="date" ici (contrairement à la section blog) : les pages standalone
-  // n'ont pas de date, Zola les exclurait silencieusement de section.pages sous un tri
-  // par date ("ignored: missing date... in a sorted section").
   return `+++
 title = "${escapeToml(title)}"
-template = "index.html"
 +++
 `;
 }
@@ -111,11 +32,6 @@ template = "index.html"
 function buildBlogIndexStub() {
   return `+++
 title = "Blog"
-sort_by = "date"
-template = "blog.html"
-page_template = "page.html"
-paginate_by = 10
-generate_feed = true
 +++
 `;
 }
@@ -130,11 +46,11 @@ function titleFromPath(path) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-// Zola refuse tout fichier content/*.md sans front matter ("+++"/"---" en tête) — notre
-// éditeur riche n'en écrit pas. On l'ajoute automatiquement si absent, de façon invisible
-// pour l'utilisateur·rice (titre déduit du premier titre tapé, sinon du nom de fichier).
-// Un article de blog (content/blog/...) reçoit une date ; une page standalone reçoit le
-// gabarit générique du thème (voir themes/volks-typo/templates/standalone-page.html).
+// Le loader de contenu (ssg-src/content-loader.js) attend un front matter ("+++" en
+// tête) sur tout fichier content/*.md — notre éditeur riche n'en écrit pas. On l'ajoute
+// automatiquement si absent, de façon invisible pour l'utilisateur·rice (titre déduit du
+// premier titre tapé, sinon du nom de fichier). Un article de blog (content/blog/...)
+// reçoit une date, pas une page standalone.
 function ensureFrontMatter(markdown, path) {
   if (/^(\+\+\+|---)\s*$/m.test(markdown.split("\n", 1)[0])) return markdown;
   const heading = markdown.match(/^#\s+(.+)$/m);
@@ -143,7 +59,7 @@ function ensureFrontMatter(markdown, path) {
     const date = new Date().toISOString().slice(0, 10);
     return `+++\ntitle = "${title}"\ndate = ${date}\n+++\n\n${markdown}`;
   }
-  return `+++\ntitle = "${title}"\ntemplate = "standalone-page.html"\n+++\n\n${markdown}`;
+  return `+++\ntitle = "${title}"\n+++\n\n${markdown}`;
 }
 
 // Retire le front matter avant de charger le contenu dans l'éditeur riche — ce n'est pas
@@ -158,52 +74,19 @@ function encodeUtf8Base64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
-// Repo (via le cache local, voir getRepoFiles dans repo-cache.js) fusionné par-dessus le
-// thème vendoré de l'app — fusion fichier par fichier (pas un tout-ou-rien sur "le thème
-// est-il installé") : un site créé avant cette fonctionnalité, ou n'ayant personnalisé
-// qu'UN SEUL gabarit, retombe correctement sur le thème vendoré pour tout le reste plutôt
-// que de se retrouver avec un site cassé (macros/partials manquants). Le thème vendoré
-// étant caché en mémoire après le premier appel (voir loadThemeFiles), cette fusion est
-// quasi gratuite. installThemeInSite() ci-dessous copie explicitement tout le thème dans
-// le repo, à la demande (voir renderSiteSettings dans app.js) — jamais requis pour que la
-// lecture/le build fonctionnent, seulement pour rendre le repo autonome. Point d'entrée à
-// utiliser partout dans ce fichier à la place de getRepoFiles() directement.
-async function getSiteFiles(owner, repo) {
-  const [themeFiles, repoFiles] = await Promise.all([loadThemeFiles(CURRENT_THEME), getRepoFiles(owner, repo, api)]);
-  return { ...themeFiles, ...repoFiles };
-}
-
-// Vrai si ce site a déjà son thème copié dans son repo — pour l'écran Réglages, qui
-// propose installThemeInSite() sinon. Repo réel (pas getSiteFiles, qui masquerait
-// l'absence via le repli sur le thème vendoré).
-async function siteHasThemeInstalled(owner, repo) {
-  const repoFiles = await getRepoFiles(owner, repo, api);
-  return Object.keys(repoFiles).some((path) => path.startsWith("templates/"));
-}
-
-// Installe le thème complet dans un site créé avant cette fonctionnalité (voir
-// getSiteFiles ci-dessus) — même commit batch que createSite() dans app.js, sur main.
-// Idempotent : un site qui a déjà templates/ n'a rien à gagner à le refaire, mais rien de
-// cassé non plus (publishFiles écraserait juste les mêmes fichiers avec le même contenu).
-async function installThemeInSite(owner, repo) {
-  const themeFiles = await loadThemeFiles(CURRENT_THEME);
-  await api.publishFiles(owner, repo, "main", themeFiles);
-  await invalidateRepoCache(owner, repo);
-}
-
 // Récupère tout le contenu de content/ sur main et retourne { "content/x.md": "...", ... }
 // — décodé depuis le cache local de tout le dépôt (voir repo-cache.js ; getRepoFiles ne
 // retélécharge que si le sha HEAD distant a changé depuis le dernier appel). Utilisé pour
 // le *build* — inclut les _index.md (sections), contrairement à listContentPages() qui
 // les exclut de la liste "pages" éditable.
 async function fetchContentFiles(owner, repo) {
-  const repoFiles = await getSiteFiles(owner, repo);
+  const repoFiles = await getRepoFiles(owner, repo, api);
   const files = {};
   for (const [path, bytes] of Object.entries(repoFiles)) {
     if (!path.startsWith("content/") || !path.endsWith(".md")) continue;
     // Garantit un front matter même sur des pages créées avant que ça soit automatique
-    // (ou modifiées hors du CMS) — Zola refuse de builder le site entier si UN SEUL
-    // fichier content/*.md en est dépourvu.
+    // (ou modifiées hors du CMS) — le loader de contenu (ssg-src/content-loader.js)
+    // refuse tout fichier content/*.md qui en serait dépourvu.
     files[path] = ensureFrontMatter(new TextDecoder().decode(bytes), path);
   }
   return files;
@@ -231,17 +114,6 @@ async function listContentPages(owner, repo) {
     }));
   pages.sort((a, b) => a.title.localeCompare(b.title));
   return pages;
-}
-
-// Chemins .html sous templates/ (gabarits de page + includes partagés macros/partials,
-// voir renderTemplates() dans app.js) pour peupler l'onglet Templates — dérivés de
-// getSiteFiles(), donc toujours la liste complète même sur un site pas encore aligné sur
-// le nouveau modèle "thème copié dans le repo" (voir le commentaire de getSiteFiles).
-async function listSiteTemplatePaths(owner, repo) {
-  const files = await getSiteFiles(owner, repo);
-  return Object.keys(files)
-    .filter((path) => path.startsWith("templates/") && path.endsWith(".html"))
-    .sort();
 }
 
 // Transforme un texte libre en identifiant de fichier/dépôt (minuscules, sans accents,
@@ -302,8 +174,8 @@ async function setBlogTitle(owner, repo, title) {
 // dans un fichier dédié à la racine du dépôt plutôt que dans le front matter de
 // content/_index.md (pas de lien logique avec le titre du blog) — première brique du
 // futur "fichier structuré de config du site" évoqué dans README ("Architecture
-// cœur/thèmes/plugins"). Jamais lu par Zola (ni content/, templates/, static/, sass/, ni
-// config.toml) : reste un fichier source sur main, jamais publié sur la branche pages.
+// cœur/thèmes/plugins"). Jamais lu par le renderer (ni content/, ni le reste du dépôt) :
+// reste un fichier source sur main, jamais publié sur la branche pages.
 function extractCustomDomain(toml) {
   const match = toml.match(/^custom_domain\s*=\s*"(.*)"\s*$/m);
   return match ? match[1].replace(/\\"/g, '"') : null;
@@ -338,20 +210,18 @@ async function setCustomDomain(owner, repo, domain) {
   });
 }
 
-// Construit le site en mémoire (contenu du repo + config générée) sans rien publier —
-// utilisé à la fois par rebuildAndPublishSite() et par buildPreviewSite() ci-dessous, qui
-// ne diffèrent qu'après cet appel (l'un publie sur pages, l'autre sert direct via le
-// service worker de preview). `repoFiles` : { chemin: Uint8Array } tel que renvoyé par
-// getRepoFiles() (repo-cache.js) — thème + content/, tel quel sur la branche main du site
-// (voir le plan "Refonte lecture repo" : le thème n'est plus lu séparément depuis les
-// assets de l'app à chaque build, seulement une fois à la création du site).
-// `drafts` : { chemin: "texte" } — un brouillon en cours d'édition, pas encore enregistré
-// sur main, qui doit prendre le pas sur le contenu du repo pour cette preview ; chemin
-// content/*.md (page/article) ou templates/*.html (gabarit), même mécanique pour les deux.
-// baseUrl doit être absolue (Zola l'exige) : l'URL réelle du site publié pour
+// Construit le site en mémoire (contenu du repo + gabarits Puck par défaut, voir
+// ssg-src/default-templates.js) sans rien publier — utilisé à la fois par
+// rebuildAndPublishSite() et par buildPreviewSite() ci-dessous, qui ne diffèrent qu'après
+// cet appel (l'un publie sur pages, l'autre sert direct via le service worker de
+// preview). `repoFiles` : { chemin: Uint8Array } tel que renvoyé par getRepoFiles()
+// (repo-cache.js), le contenu du dépôt de site tel quel sur la branche main.
+// `drafts` : { chemin: "texte" } — une page/un article en cours d'édition, pas encore
+// enregistré sur main, qui doit prendre le pas sur le contenu du repo pour cette preview.
+// baseUrl doit être absolue (voir ssg-src/context.js) : l'URL réelle du site publié pour
 // rebuildAndPublishSite(), l'URL /preview/<owner>/<repo>/ pour buildPreviewSite() — sinon
-// Zola génère nav/assets/liens en absolu vers le vrai domaine de prod (qui n'a pas encore
-// ce contenu), hors du scope intercepté par sw.js.
+// les liens de nav pointeraient en absolu vers le vrai domaine de prod (qui n'a pas
+// encore ce contenu), hors du scope intercepté par sw.js.
 async function buildSiteFiles(owner, repo, repoFiles, baseUrl, drafts = {}) {
   const contentPaths = new Set(Object.keys(repoFiles).filter((p) => p.startsWith("content/") && p.endsWith(".md")));
   for (const path of Object.keys(drafts)) {
@@ -363,60 +233,41 @@ async function buildSiteFiles(owner, repo, repoFiles, baseUrl, drafts = {}) {
     const raw = path in drafts ? drafts[path] : new TextDecoder().decode(repoFiles[path]);
     contentText[path] = ensureFrontMatter(raw, path);
   }
+  if (!contentText["content/_index.md"]) contentText["content/_index.md"] = buildIndexStub(repo);
+  if (!contentText["content/blog/_index.md"]) contentText["content/blog/_index.md"] = buildBlogIndexStub();
 
-  const title = contentText["content/_index.md"]
-    ? extractTitle(contentText["content/_index.md"], "content/_index.md")
-    : repo;
-  const standalonePages = Object.keys(contentText)
-    .filter((path) => !path.endsWith("_index.md") && !path.startsWith("content/blog/"))
-    .map((path) => ({ path, title: extractTitle(contentText[path], path) }));
+  const title = extractTitle(contentText["content/_index.md"], "content/_index.md");
 
-  const encoder = new TextEncoder();
-  const encodedContent = {};
-  for (const [path, text] of Object.entries(contentText)) {
-    encodedContent[path] = encoder.encode(text);
-  }
-  const nonContentDrafts = {};
-  for (const [path, text] of Object.entries(drafts)) {
-    if (!contentPaths.has(path)) nonContentDrafts[path] = encoder.encode(text);
-  }
-
-  const files = {
-    ...repoFiles,
-    ...nonContentDrafts,
-    "config.toml": buildConfigToml({ title, baseUrl, standalonePages }),
-    ...encodedContent,
-  };
-  if (!files["content/_index.md"]) files["content/_index.md"] = encoder.encode(buildIndexStub(repo));
-  if (!files["content/blog/_index.md"]) files["content/blog/_index.md"] = encoder.encode(buildBlogIndexStub());
-
-  return ZolaBuilder.buildSite(files);
+  return SsgBuilder.buildSite({
+    files: contentText,
+    title,
+    baseUrl,
+    templates: SsgBuilder.defaultTemplates,
+  });
 }
 
 // Rebuild d'aperçu : récupère le repo (servi depuis le cache local si déjà à jour, voir
-// getRepoFiles) et y substitue le brouillon en cours d'édition, non encore enregistré —
-// une page/un article (content/*.md) ou un gabarit de thème (templates/*.html), même
-// fonction pour les deux. Ne publie rien : la sortie est servie directement par sw.js.
-// previewBaseUrl : voir previewBaseUrl() dans app.js — même chemin que celui utilisé pour
-// naviguer l'iframe.
+// getRepoFiles) et y substitue le brouillon en cours d'édition, non encore enregistré.
+// Ne publie rien : la sortie est servie directement par sw.js. previewBaseUrl : voir
+// previewBaseUrl() dans app.js — même chemin que celui utilisé pour naviguer l'iframe.
 async function buildPreviewSite(owner, repo, draftPath, draftText, previewBaseUrl) {
-  const repoFiles = await getSiteFiles(owner, repo);
+  const repoFiles = await getRepoFiles(owner, repo, api);
   try {
     return await buildSiteFiles(owner, repo, repoFiles, previewBaseUrl, { [draftPath]: draftText });
   } catch (err) {
-    console.error("Échec du build Zola (aperçu):", err.log || err.message);
+    console.error("Échec du build (aperçu):", err.log || err.message);
     throw err;
   }
 }
 
-// Récupère tout le dépôt (thème + contenu, depuis le cache local ou fraîchement
-// téléchargé si le sha distant a changé — voir getRepoFiles), buildit avec Zola (en
-// mémoire, dans le navigateur), et publie tous les fichiers produits sur la branche
-// pages en un seul commit (voir api.publishFiles — un batch côté Forgejo, une séquence
+// Récupère tout le dépôt (depuis le cache local ou fraîchement téléchargé si le sha
+// distant a changé — voir getRepoFiles), rend le site avec le renderer Puck (en mémoire,
+// dans le navigateur), et publie tous les fichiers produits sur la branche pages en un
+// seul commit (voir api.publishFiles — un batch côté Forgejo, une séquence
 // blob/tree/commit/ref via l'API Git Data côté GitHub, plutôt qu'un aller-retour
 // get-sha+PUT séquentiel par fichier).
 async function rebuildAndPublishSite(owner, repo) {
-  const repoFiles = await getSiteFiles(owner, repo);
+  const repoFiles = await getRepoFiles(owner, repo, api);
 
   // site.toml (voir getCustomDomain/setCustomDomain) est déjà présent dans repoFiles —
   // aucun aller-retour réseau supplémentaire pour connaître le domaine personnalisé, même
@@ -430,7 +281,7 @@ async function rebuildAndPublishSite(owner, repo) {
   try {
     ({ files: output } = await buildSiteFiles(owner, repo, repoFiles, baseUrl));
   } catch (err) {
-    console.error("Échec du build Zola:", err.log || err.message);
+    console.error("Échec du build:", err.log || err.message);
     throw err;
   }
 

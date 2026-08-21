@@ -1,12 +1,22 @@
 /**
- * Track D (voir docs/plan-puck-ssg.md) : composant Puck "Footer", statique — pas de
- * champ binding. Style en custom properties CSS + style inline, pas de Sass.
+ * Track D (voir docs/plan-puck-ssg.md) : composant Puck "Footer". Style en custom
+ * properties CSS + style inline, pas de Sass.
+ *
+ * `siteName` est bindable (intégration app, voir ssg-src/default-templates.js) : le
+ * gabarit par défaut est partagé par tous les sites, donc son Footer doit pouvoir
+ * afficher le vrai titre de CE site (`site.title`) sans devoir être retapé par site —
+ * exactement ce pour quoi les bindings existent. Les autres champs restent littéraux
+ * (tagline/copyright/links n'ont pas d'équivalent dans le Context, voir ssg-src/types.js).
  */
+
+import { bindingField } from "../fields/binding-field.jsx";
+import { resolveProps } from "../resolver.js";
+import { useSsgContext } from "../ssg-context.js";
 
 export const Footer = {
   label: "Footer",
   fields: {
-    siteName: { type: "text", label: "Nom du site" },
+    siteName: bindingField({ label: "Nom du site", paths: ["site.title"], allowCollection: false }),
     tagline: { type: "text", label: "Baseline" },
     links: {
       type: "array",
@@ -23,7 +33,7 @@ export const Footer = {
     textColor: { type: "text", label: "Couleur du texte (hex)" },
   },
   defaultProps: {
-    siteName: "",
+    siteName: { $bind: "site.title" },
     tagline: "",
     links: [],
     copyright: "",
@@ -31,6 +41,8 @@ export const Footer = {
     textColor: "#e2e8f0",
   },
   render: ({ siteName, tagline, links, copyright, backgroundColor, textColor }) => {
+    const context = useSsgContext();
+    const { siteName: resolvedSiteName } = resolveProps({ siteName }, context);
     const items = Array.isArray(links) ? links : [];
     return (
       <footer
@@ -48,7 +60,7 @@ export const Footer = {
         }}
       >
         <div>
-          {siteName ? <p style={{ fontWeight: 700, margin: 0 }}>{siteName}</p> : null}
+          {resolvedSiteName ? <p style={{ fontWeight: 700, margin: 0 }}>{resolvedSiteName}</p> : null}
           {tagline ? <p style={{ margin: "0.25rem 0 0", opacity: 0.75, fontSize: "0.875rem" }}>{tagline}</p> : null}
         </div>
         {items.length > 0 ? (

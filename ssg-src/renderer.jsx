@@ -98,7 +98,7 @@ ${bodyHtml}
  * @param {string} opts.title
  * @param {string} opts.baseUrl
  * @param {{home: Object, page: Object, blogIndex: Object, article: Object}} opts.templates - un gabarit Puck par type de route
- * @returns {Promise<{ files: Object.<string, string> }>}
+ * @returns {Promise<{ files: Object.<string, Uint8Array> }>}
  */
 export async function buildSite({ files, title, baseUrl, templates }) {
   const collections = await loadCollections(files);
@@ -124,5 +124,16 @@ export async function buildSite({ files, title, baseUrl, templates }) {
   output["rss.xml"] = buildRssFeed(rootContext);
   output["sitemap.xml"] = buildSitemap(rootContext);
 
-  return { files: output };
+  // Encodé en Uint8Array pour tout le monde, jamais en string : même contrat que
+  // ZolaBuilder.buildSite() avant lui (voir editor-src/zola-builder.js) — les
+  // consommateurs (api.publishFiles(), qui base64-encode via bytesToBase64(), et sw.js
+  // pour l'aperçu) attendent des octets, pas du texte.
+  const encoder = new TextEncoder();
+  /** @type {Object.<string, Uint8Array>} */
+  const encodedOutput = {};
+  for (const [path, content] of Object.entries(output)) {
+    encodedOutput[path] = encoder.encode(content);
+  }
+
+  return { files: encodedOutput };
 }
