@@ -205,10 +205,104 @@ compliqué.
   maquette de composants Puck pour être représentatif, mais ça peut être un design
   neuf plutôt qu'une reconstitution de volks-typo.
 
+## Parallélisation (plusieurs agents, plusieurs worktrees)
+
+Aucun code Puck n'existe encore dans le repo (pas de dépendance `@measured/puck`
+dans `package.json`, rien sous `editor-src/`) : la toute première étape n'est donc
+**pas** parallélisable — il faut fixer un contrat d'interfaces commun avant de
+lâcher plusieurs agents sur plusieurs worktrees, sinon chacun invente sa propre
+forme de contexte/resolver et la fusion devient ingérable.
+
+### Phase 0 — contrat, séquentiel, avant tout (une seule track)
+
+Fixer, sans forcément tout implémenter :
+
+- la forme exacte de l'objet `context` (`site`/`page`/`section`/`collections`),
+- la signature de `resolveProps(props, context)`,
+- la forme du descripteur `{ $bind: ... }` (lookup simple vs requête sur collection),
+- l'emplacement des fichiers (ex. `ssg-src/context.js`, `ssg-src/resolver.js`,
+  `ssg-src/components/`, `ssg-src/feeds/`),
+- l'ajout de `@measured/puck` (ou équivalent) au `package.json`.
+
+### Phase 1 — tracks parallèles
+
+| Track | Tâches couvertes | Dépend de (contrat seulement) | Fichiers possédés |
+|---|---|---|---|
+| **A — Données** | 1 (contexte) + 4 (loader Markdown) | rien | `ssg-src/context.js`, `ssg-src/content-loader.js` |
+| **B — Bindings** | 2 (resolver + champ binding) | signature du resolver | `ssg-src/resolver.js`, `ssg-src/fields/binding-field.jsx` |
+| **C — Repeater** | 3 (composant Repeater) | contrat de B (peut stubber le resolver) + contrat de collection de A | `ssg-src/components/repeater.jsx` |
+| **D — Palette** | 8 (composants) + 9 (props de style) | contrat du champ binding de B (peut stubber en attendant) | `ssg-src/components/*.jsx` (un fichier par composant) |
+| **E — Flux** | 6 (RSS) + 7 (sitemap) | contrat de collection de A | `ssg-src/feeds/rss.js`, `ssg-src/feeds/sitemap.js` |
+
+Règle anti-conflit de merge : chaque composant/module vit dans son propre fichier ;
+aucune track ne touche un fichier "registre" partagé (ex. l'index qui liste tous les
+composants) — cet agrégateur est écrit une seule fois, en phase 2, par l'intégration.
+
+### Phase 2 — intégration, séquentiel, après fusion des tracks
+
+Tâche 5 (renderer/orchestrateur) puis tâche 10 (point de contrôle prototype) : ces
+deux étapes ont besoin que les tracks A à D existent réellement, pas juste en
+contrat — elles ne peuvent démarrer qu'après la fusion des worktrees parallèles.
+
+#### Brief — Track A (Données)
+
+Construire le modèle de contexte et le chargeur Markdown/front matter.
+Contexte du projet : `content/*.md` (pages) et `content/blog/*.md` (articles) sont
+déjà lus et groupés côté app existante (`app.js` : `listContentPages`/
+`renderPageGroup`) — reprendre exactement ce même découpage plutôt qu'en inventer un
+nouveau. Livrable : `ssg-src/context.js` (construit l'objet `{ site, page?, section?,
+collections }`) et `ssg-src/content-loader.js` (parse front matter + corps en JS,
+ex. via `remark`/`gray-matter`, sans dépendance WASM). Ne pas toucher aux fichiers
+d'autres tracks.
+
+#### Brief — Track B (Bindings)
+
+Construire le resolver et le champ Puck pour choisir un binding.
+`resolveProps(props, context)` parcourt récursivement un arbre de props Puck,
+remplace tout noeud `{ $bind: "chemin.vers.valeur" }` par sa valeur trouvée dans
+`context` (lookup simple), et tout noeud `{ $bind: "collection", from, sortBy,
+order, limit }` par le tableau résultant de la requête sur `context.collections`.
+Les littéraux (chaînes, nombres, tableaux sans `$bind`) traversent inchangés. Fournir
+aussi un type de champ Puck (`ssg-src/fields/binding-field.jsx`) qui affiche un
+sélecteur de chemin plutôt qu'un texte libre. Cette track n'a besoin que de la forme
+du contexte en contrat (voir Phase 0), pas de son implémentation réelle — tester
+avec un objet de contexte factice.
+
+#### Brief — Track C (Repeater)
+
+Construire le composant Puck "Repeater" : une prop `source` au format du descripteur
+de collection ci-dessus, et un slot Puck dont le contenu est rendu une fois par item
+résolu, avec un contexte étendu `{ ...context, item }` pour que les composants
+enfants du slot puissent binder sur `item.title`, `item.excerpt`, etc. Si le
+resolver réel (track B) n'est pas encore fusionné, stubber une fonction
+`resolveProps` factice au même signature en attendant. Consulter la doc Puck sur les
+slots (`slot` field type) pour l'API exacte de composition.
+
+#### Brief — Track D (Palette de composants)
+
+Construire la bibliothèque de composants Puck de base : hero, grille de
+fonctionnalités, CTA, carte d'article, nav, footer. Chaque composant est un fichier
+séparé sous `ssg-src/components/`, exportant sa config Puck (`fields`, `render`).
+Les props de style (couleur, espacement, typographie) émettent du style inline ou
+des custom properties CSS — pas de pipeline Sass. Les composants statiques (hero,
+CTA, grille) n'ont besoin de rien d'autre ; les composants qui listent des éléments
+(nav, carte d'article en boucle) peuvent stubber le champ binding et le Repeater en
+attendant que B et C soient fusionnés. Ne pas créer de fichier d'agrégation listant
+tous les composants — ce sera fait en phase 2.
+
+#### Brief — Track E (Flux RSS/sitemap)
+
+Construire un générateur RSS (`ssg-src/feeds/rss.js`) et un générateur de sitemap
+(`ssg-src/feeds/sitemap.js`), tous deux en JS pur produisant du XML à partir de
+`context.collections` — remplace ce que Zola faisait via `generate_feed = true` et sa
+config de sitemap intégrée. N'a besoin que de la forme de `collections` fixée en
+Phase 0 (tableau d'objets `{ title, slug, url, date, excerpt, ... }` par groupe de
+contenu), pas du reste du contexte.
+
 ## Vérification
 
 Pas de suite automatisée dédiée pour l'instant. Le point de contrôle prototype (tâche
-11) sert de première vérification de bout en bout : bindings + collections + slot API
+10) sert de première vérification de bout en bout : bindings + collections + slot API
 de Puck coopérant sur un vrai cas d'usage (page d'index de blog). Les tests e2e
 existants (`e2e/`) couvrent le flow Zola actuel et devront être adaptés une fois le
 renderer Puck remplacé — pas avant que le point de contrôle prototype soit validé.
