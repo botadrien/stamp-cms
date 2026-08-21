@@ -12,6 +12,7 @@
 import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
+import { TOKENS } from "../design-tokens.js";
 
 export const Footer = {
   label: "Footer",
@@ -37,8 +38,8 @@ export const Footer = {
     tagline: "",
     links: [],
     copyright: "",
-    backgroundColor: "#0f172a",
-    textColor: "#e2e8f0",
+    backgroundColor: TOKENS.surfaceAlt,
+    textColor: TOKENS.ink,
   },
   render: ({ siteName, tagline, links, copyright, backgroundColor, textColor }) => {
     const context = useSsgContext();
@@ -47,32 +48,38 @@ export const Footer = {
     return (
       <footer
         style={{
-          "--ssg-footer-bg": backgroundColor || "#0f172a",
-          "--ssg-footer-fg": textColor || "#e2e8f0",
+          "--ssg-footer-bg": backgroundColor || TOKENS.surfaceAlt,
+          "--ssg-footer-fg": textColor || TOKENS.ink,
           backgroundColor: "var(--ssg-footer-bg)",
           color: "var(--ssg-footer-fg)",
-          padding: "3rem 1.5rem",
+          borderTop: `1px solid ${TOKENS.border}`,
+          padding: "2.5rem 2rem",
           display: "flex",
           flexWrap: "wrap",
           justifyContent: "space-between",
           alignItems: "center",
           gap: "1.5rem",
+          fontFamily: TOKENS.fontFamily,
         }}
       >
         <div>
           {resolvedSiteName ? <p style={{ fontWeight: 700, margin: 0 }}>{resolvedSiteName}</p> : null}
-          {tagline ? <p style={{ margin: "0.25rem 0 0", opacity: 0.75, fontSize: "0.875rem" }}>{tagline}</p> : null}
+          {tagline ? <p style={{ margin: "0.25rem 0 0", opacity: 0.65, fontSize: "0.875rem" }}>{tagline}</p> : null}
         </div>
         {items.length > 0 ? (
           <nav style={{ display: "flex", gap: "1.25rem" }}>
             {items.map((link, index) => (
-              <a key={link.url ?? index} href={link.url ?? "#"} style={{ color: "inherit", textDecoration: "none" }}>
+              <a
+                key={link.url ?? index}
+                href={link.url ?? "#"}
+                style={{ color: "inherit", textDecoration: "none", opacity: 0.75, fontSize: "0.9375rem" }}
+              >
                 {link.label}
               </a>
             ))}
           </nav>
         ) : null}
-        {copyright ? <p style={{ margin: 0, opacity: 0.6, fontSize: "0.8125rem" }}>{copyright}</p> : null}
+        {copyright ? <p style={{ margin: 0, opacity: 0.55, fontSize: "0.8125rem" }}>{copyright}</p> : null}
       </footer>
     );
   },

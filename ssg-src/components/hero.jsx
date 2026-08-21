@@ -3,7 +3,13 @@
  * en dur par l'auteur·ice, pas de champ binding (voir la brief Track D : les
  * composants statiques hero/CTA/grille n'ont besoin de rien d'autre). Style en
  * custom properties CSS + style inline, pas de Sass.
+ *
+ * Défauts visuels inspirés de https://demo.puckeditor.com/ (voir ssg-src/design-tokens.js) :
+ * fond clair, titre noir en gras serré, bouton plein accent bleu — toujours éditable via
+ * backgroundColor/textColor.
  */
+
+import { TOKENS, solidButtonStyle } from "../design-tokens.js";
 
 const ALIGN_OPTIONS = [
   { label: "Aligné à gauche", value: "left" },
@@ -34,8 +40,8 @@ export const Hero = {
     ctaUrl: "",
     align: "left",
     spacing: "md",
-    backgroundColor: "#0f172a",
-    textColor: "#f8fafc",
+    backgroundColor: TOKENS.surface,
+    textColor: TOKENS.ink,
   },
   render: ({ eyebrow, title, subtitle, ctaLabel, ctaUrl, align, spacing, backgroundColor, textColor }) => {
     const paddingBlock = SPACING[spacing] ?? SPACING.md;
@@ -43,12 +49,13 @@ export const Hero = {
     return (
       <section
         style={{
-          "--ssg-hero-bg": backgroundColor || "#0f172a",
-          "--ssg-hero-fg": textColor || "#f8fafc",
+          "--ssg-hero-bg": backgroundColor || TOKENS.surface,
+          "--ssg-hero-fg": textColor || TOKENS.ink,
           backgroundColor: "var(--ssg-hero-bg)",
           color: "var(--ssg-hero-fg)",
           padding: `${paddingBlock} 1.5rem`,
           textAlign: centered ? "center" : "left",
+          fontFamily: TOKENS.fontFamily,
         }}
       >
         <div style={{ maxWidth: "48rem", margin: centered ? "0 auto" : "0" }}>
@@ -56,10 +63,10 @@ export const Hero = {
             <p
               style={{
                 fontSize: "0.875rem",
-                fontWeight: 600,
-                letterSpacing: "0.08em",
+                fontWeight: 700,
+                letterSpacing: "0.06em",
                 textTransform: "uppercase",
-                opacity: 0.75,
+                color: TOKENS.accent,
                 margin: "0 0 0.75rem",
               }}
             >
@@ -67,26 +74,33 @@ export const Hero = {
             </p>
           ) : null}
           {title ? (
-            <h1 style={{ fontSize: "clamp(2rem, 4vw, 3rem)", fontWeight: 700, margin: "0 0 1rem", lineHeight: 1.1 }}>
+            <h1
+              style={{
+                fontSize: "clamp(2.25rem, 5vw, 3.5rem)",
+                fontWeight: 800,
+                letterSpacing: "-0.02em",
+                margin: "0 0 1rem",
+                lineHeight: 1.05,
+              }}
+            >
               {title}
             </h1>
           ) : null}
           {subtitle ? (
-            <p style={{ fontSize: "1.125rem", opacity: 0.9, margin: "0 0 1.5rem", lineHeight: 1.5 }}>{subtitle}</p>
-          ) : null}
-          {ctaLabel && ctaUrl ? (
-            <a
-              href={ctaUrl}
+            <p
               style={{
-                display: "inline-block",
-                padding: "0.75rem 1.5rem",
-                borderRadius: "0.5rem",
-                backgroundColor: "var(--ssg-hero-fg)",
-                color: "var(--ssg-hero-bg)",
-                fontWeight: 600,
-                textDecoration: "none",
+                fontSize: "1.1875rem",
+                color: "var(--ssg-hero-fg)",
+                opacity: 0.72,
+                margin: "0 0 1.75rem",
+                lineHeight: 1.55,
               }}
             >
+              {subtitle}
+            </p>
+          ) : null}
+          {ctaLabel && ctaUrl ? (
+            <a href={ctaUrl} style={solidButtonStyle(TOKENS.accent, "#ffffff")}>
               {ctaLabel}
             </a>
           ) : null}

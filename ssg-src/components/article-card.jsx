@@ -15,6 +15,7 @@ import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
 import { resolveHref } from "../context.js";
+import { TOKENS } from "../design-tokens.js";
 
 const COLUMNS_OPTIONS = [1, 2, 3].map((value) => ({ label: `${value} colonne${value > 1 ? "s" : ""}`, value }));
 
@@ -35,7 +36,7 @@ export const ArticleCard = {
   defaultProps: {
     source: { $bind: "collection", from: "blog", sortBy: "date", order: "desc", limit: 3 },
     columns: 3,
-    accentColor: "#2563eb",
+    accentColor: TOKENS.accent,
   },
   render: ({ source, columns, accentColor }) => {
     const context = useSsgContext();
@@ -47,6 +48,7 @@ export const ArticleCard = {
           display: "grid",
           gap: "1.5rem",
           gridTemplateColumns: `repeat(${columns || 3}, minmax(0, 1fr))`,
+          fontFamily: TOKENS.fontFamily,
         }}
       >
         {items.map((item, index) => (
@@ -56,22 +58,34 @@ export const ArticleCard = {
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "0.5rem",
-              padding: "1.25rem",
-              borderRadius: "0.75rem",
-              border: "1px solid #e2e8f0",
+              gap: "0.625rem",
+              padding: "1.5rem",
+              borderRadius: TOKENS.radius,
+              border: `1px solid ${TOKENS.border}`,
+              boxShadow: TOKENS.cardShadow,
+              backgroundColor: TOKENS.surface,
               color: "inherit",
               textDecoration: "none",
             }}
           >
             {item?.date ? (
-              <span style={{ fontSize: "0.8125rem", color: accentColor || "#2563eb", fontWeight: 600 }}>
+              <span
+                style={{
+                  fontSize: "0.8125rem",
+                  color: accentColor || TOKENS.accent,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
                 {formatDate(item.date)}
               </span>
             ) : null}
-            {item?.title ? <h3 style={{ fontSize: "1.0625rem", fontWeight: 600, margin: 0 }}>{item.title}</h3> : null}
+            {item?.title ? (
+              <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: 0, color: TOKENS.ink }}>{item.title}</h3>
+            ) : null}
             {item?.excerpt ? (
-              <p style={{ fontSize: "0.9375rem", opacity: 0.85, margin: 0, lineHeight: 1.5 }}>{item.excerpt}</p>
+              <p style={{ fontSize: "0.9375rem", color: TOKENS.body, margin: 0, lineHeight: 1.55 }}>{item.excerpt}</p>
             ) : null}
           </a>
         ))}

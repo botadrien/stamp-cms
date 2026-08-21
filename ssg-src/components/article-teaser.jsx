@@ -14,6 +14,7 @@ import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
 import { resolveHref } from "../context.js";
+import { TOKENS } from "../design-tokens.js";
 
 const ITEM_FIELD = (label, path) => bindingField({ label, paths: [path], allowCollection: false });
 
@@ -31,7 +32,7 @@ export const ArticleTeaser = {
     date: { $bind: "item.date" },
     excerpt: { $bind: "item.excerpt" },
     url: { $bind: "item.url" },
-    accentColor: "#2563eb",
+    accentColor: TOKENS.accent,
   },
   render: ({ title, date, excerpt, url, accentColor }) => {
     const context = useSsgContext();
@@ -42,22 +43,37 @@ export const ArticleTeaser = {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
-          padding: "1.25rem",
-          borderRadius: "0.75rem",
-          border: "1px solid #e2e8f0",
+          gap: "0.625rem",
+          padding: "1.5rem",
+          maxWidth: "48rem",
+          margin: "0 auto 1.25rem",
+          borderRadius: TOKENS.radius,
+          border: `1px solid ${TOKENS.border}`,
+          boxShadow: TOKENS.cardShadow,
+          backgroundColor: TOKENS.surface,
           color: "inherit",
           textDecoration: "none",
+          fontFamily: TOKENS.fontFamily,
         }}
       >
         {resolved.date ? (
-          <span style={{ fontSize: "0.8125rem", color: accentColor || "#2563eb", fontWeight: 600 }}>
+          <span
+            style={{
+              fontSize: "0.8125rem",
+              color: accentColor || TOKENS.accent,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
             {resolved.date}
           </span>
         ) : null}
-        {resolved.title ? <h3 style={{ fontSize: "1.0625rem", fontWeight: 600, margin: 0 }}>{resolved.title}</h3> : null}
+        {resolved.title ? (
+          <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: 0, color: TOKENS.ink }}>{resolved.title}</h3>
+        ) : null}
         {resolved.excerpt ? (
-          <p style={{ fontSize: "0.9375rem", opacity: 0.85, margin: 0, lineHeight: 1.5 }}>{resolved.excerpt}</p>
+          <p style={{ fontSize: "0.9375rem", color: TOKENS.body, margin: 0, lineHeight: 1.55 }}>{resolved.excerpt}</p>
         ) : null}
       </a>
     );

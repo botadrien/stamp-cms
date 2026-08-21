@@ -16,6 +16,7 @@ import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
 import { resolveHref } from "../context.js";
+import { TOKENS } from "../design-tokens.js";
 
 const VARIANT_OPTIONS = [
   { label: "Horizontal", value: "horizontal" },
@@ -44,8 +45,8 @@ export const Nav = {
   defaultProps: {
     items: { $bind: "site.nav" },
     variant: "horizontal",
-    backgroundColor: "transparent",
-    textColor: "#0f172a",
+    backgroundColor: TOKENS.surface,
+    textColor: TOKENS.ink,
   },
   render: ({ items, variant, backgroundColor, textColor }) => {
     const context = useSsgContext();
@@ -54,21 +55,24 @@ export const Nav = {
     return (
       <nav
         style={{
-          "--ssg-nav-bg": backgroundColor || "transparent",
-          "--ssg-nav-fg": textColor || "#0f172a",
+          "--ssg-nav-bg": backgroundColor || TOKENS.surface,
+          "--ssg-nav-fg": textColor || TOKENS.ink,
           backgroundColor: "var(--ssg-nav-bg)",
           color: "var(--ssg-nav-fg)",
           display: "flex",
+          alignItems: "center",
           flexDirection: variant === "vertical" ? "column" : "row",
-          gap: variant === "vertical" ? "0.5rem" : "1.5rem",
-          padding: "1rem 1.5rem",
+          gap: variant === "vertical" ? "0.625rem" : "2rem",
+          padding: "1.25rem 2rem",
+          borderBottom: `1px solid ${TOKENS.border}`,
+          fontFamily: TOKENS.fontFamily,
         }}
       >
         {resolvedItems.map((item, index) => (
           <a
             key={item?.url ?? index}
             href={itemHref(item, context)}
-            style={{ color: "inherit", textDecoration: "none", fontWeight: 500 }}
+            style={{ color: "inherit", textDecoration: "none", fontWeight: 500, fontSize: "0.9375rem", opacity: 0.85 }}
           >
             {itemLabel(item)}
           </a>

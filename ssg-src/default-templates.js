@@ -5,14 +5,16 @@
 // partagé, donc chaque champ qui varie d'un site à l'autre (titre du site, nav, liste
 // d'articles) doit être un binding plutôt qu'une valeur tapée en dur ici.
 
+import { TOKENS } from "./design-tokens.js";
+
 /** @typedef {import("@puckeditor/core").Data} PuckData */
 
 const navProps = (id) => ({
   id,
   items: { $bind: "site.nav" },
   variant: "horizontal",
-  backgroundColor: "transparent",
-  textColor: "#0f172a",
+  backgroundColor: TOKENS.surface,
+  textColor: TOKENS.ink,
 });
 
 const footerProps = (id) => ({
@@ -21,8 +23,8 @@ const footerProps = (id) => ({
   tagline: "",
   links: [],
   copyright: "",
-  backgroundColor: "#0f172a",
-  textColor: "#e2e8f0",
+  backgroundColor: TOKENS.surfaceAlt,
+  textColor: TOKENS.ink,
 });
 
 // Repeater + ArticleTeaser bindés sur la collection blog — voir ssg-src/components/
@@ -39,7 +41,7 @@ const blogListProps = (id, { limit } = {}) => ({
         date: { $bind: "item.date" },
         excerpt: { $bind: "item.excerpt" },
         url: { $bind: "item.url" },
-        accentColor: "#2563eb",
+        accentColor: TOKENS.accent,
       },
     },
   ],
