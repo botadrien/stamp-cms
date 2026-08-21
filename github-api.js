@@ -248,10 +248,15 @@ class GitHubApi {
   // le navigateur (contrairement au protocole git smart-HTTP, voir README.md). `base_tree`
   // reprend l'arbre existant de la branche pour ne pas perdre les fichiers non touchés par
   // cette publication (mêmes fichiers que list/publishFile ignorait déjà auparavant).
+  //
+  // Les blobs (adressés par contenu, indépendants de l'état de la branche) sont créés une
+  // seule fois ; tree/commit/avancement de ref sont retentés (jusqu'à 3 essais) sur un 422
+  // "Update is not a fast forward" — la branche `pages` a bougé entre la lecture de
+  // headSha et le PATCH de la ref (ex. deux publications qui se chevauchent). Rejouer avec
+  // un head frais est sûr ici : `pages` n'est jamais une source de vérité, seulement la
+  // sortie régénérée à chaque publication (voir rebuildAndPublishSite() dans
+  // site-builder.js) — rien à perdre à rebaser sur la dernière tête plutôt qu'à échouer.
   async publishFiles(owner, repo, branch, files) {
-    const headSha = await this._headCommitSha(owner, repo, branch);
-    const baseCommit = await this._request(`/repos/${owner}/${repo}/git/commits/${headSha}`);
-
     const treeEntries = await Promise.all(
       Object.entries(files).map(async ([path, bytes]) => {
         const blob = await this._request(`/repos/${owner}/${repo}/git/blobs`, {
@@ -262,20 +267,31 @@ class GitHubApi {
       })
     );
 
-    const tree = await this._request(`/repos/${owner}/${repo}/git/trees`, {
-      method: "POST",
-      body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree: treeEntries }),
-    });
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const headSha = await this._headCommitSha(owner, repo, branch);
+      const baseCommit = await this._request(`/repos/${owner}/${repo}/git/commits/${headSha}`);
 
-    const commit = await this._request(`/repos/${owner}/${repo}/git/commits`, {
-      method: "POST",
-      body: JSON.stringify({ tree: tree.sha, parents: [headSha], message: "Publication du site" }),
-    });
+      const tree = await this._request(`/repos/${owner}/${repo}/git/trees`, {
+        method: "POST",
+        body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree: treeEntries }),
+      });
 
-    return this._request(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
-      method: "PATCH",
-      body: JSON.stringify({ sha: commit.sha }),
-    });
+      const commit = await this._request(`/repos/${owner}/${repo}/git/commits`, {
+        method: "POST",
+        body: JSON.stringify({ tree: tree.sha, parents: [headSha], message: "Publication du site" }),
+      });
+
+      try {
+        return await this._request(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+          method: "PATCH",
+          body: JSON.stringify({ sha: commit.sha }),
+        });
+      } catch (err) {
+        if (err.status !== 422 || attempt === maxAttempts) throw err;
+        // Retente avec une tête fraîche plutôt que de remonter l'erreur.
+      }
+    }
   }
 
   async _headCommitSha(owner, repo, branch) {

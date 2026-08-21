@@ -15,6 +15,7 @@
 import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
+import { resolveHref } from "../context.js";
 
 const VARIANT_OPTIONS = [
   { label: "Horizontal", value: "horizontal" },
@@ -25,8 +26,11 @@ function itemLabel(item) {
   return item?.label ?? item?.title ?? "";
 }
 
-function itemUrl(item) {
-  return item?.url ?? "#";
+// item.url est racine-relatif au contenu (voir resolveHref() dans ssg-src/context.js) —
+// jamais utilisé tel quel comme href, sinon les liens casseraient sur tout site publié
+// hors de la racine du domaine.
+function itemHref(item, context) {
+  return item?.url ? resolveHref(context, item.url) : "#";
 }
 
 export const Nav = {
@@ -62,8 +66,8 @@ export const Nav = {
       >
         {resolvedItems.map((item, index) => (
           <a
-            key={itemUrl(item) || index}
-            href={itemUrl(item)}
+            key={item?.url ?? index}
+            href={itemHref(item, context)}
             style={{ color: "inherit", textDecoration: "none", fontWeight: 500 }}
           >
             {itemLabel(item)}

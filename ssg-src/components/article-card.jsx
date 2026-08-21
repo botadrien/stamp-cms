@@ -14,6 +14,7 @@
 import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
+import { resolveHref } from "../context.js";
 
 const COLUMNS_OPTIONS = [1, 2, 3].map((value) => ({ label: `${value} colonne${value > 1 ? "s" : ""}`, value }));
 
@@ -51,7 +52,7 @@ export const ArticleCard = {
         {items.map((item, index) => (
           <a
             key={item?.url ?? index}
-            href={item?.url ?? "#"}
+            href={item?.url ? resolveHref(context, item.url) : "#"}
             style={{
               display: "flex",
               flexDirection: "column",

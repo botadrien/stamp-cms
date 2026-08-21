@@ -20,16 +20,13 @@
  * les gabarits sont donc fournis par l'appelant (`templates`), un par type de route —
  * même principe que le `template`/`page_template` du front matter Zola aujourd'hui
  * (ensureFrontMatter()/buildBlogIndexStub() dans site-builder.js), pas une nouvelle
- * idée. Pas de gabarit de page/article "avec corps rendu" fourni ici : aucun composant
- * de la palette ne bind encore sur `page.body`/`item.body` (voir feuille de route,
- * "Palette de composants") — hors scope du point de contrôle prototype (tâche 10),
- * qui porte sur "page d'index avec Repeater".
+ * idée.
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { Render } from "@puckeditor/core";
 import { loadCollections } from "./content-loader.js";
-import { buildContext } from "./context.js";
+import { buildContext, resolveHref } from "./context.js";
 import { SsgContext } from "./ssg-context.js";
 import { puckConfig } from "./registry.jsx";
 import { buildRssFeed } from "./feeds/rss.js";
@@ -80,7 +77,7 @@ function renderPuckPage(puckData, context) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(pageTitle(context))}</title>
-<link rel="alternate" type="application/rss+xml" title="${escapeHtml(context.site.title)}" href="/rss.xml">
+<link rel="alternate" type="application/rss+xml" title="${escapeHtml(context.site.title)}" href="${escapeHtml(resolveHref(context, "/rss.xml"))}">
 </head>
 <body>
 ${bodyHtml}

@@ -13,6 +13,7 @@
 import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
+import { resolveHref } from "../context.js";
 
 const ITEM_FIELD = (label, path) => bindingField({ label, paths: [path], allowCollection: false });
 
@@ -37,7 +38,7 @@ export const ArticleTeaser = {
     const resolved = resolveProps({ title, date, excerpt, url }, context);
     return (
       <a
-        href={resolved.url || "#"}
+        href={resolved.url ? resolveHref(context, resolved.url) : "#"}
         style={{
           display: "flex",
           flexDirection: "column",

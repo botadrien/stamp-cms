@@ -24,6 +24,31 @@ function buildNav(pages) {
   ];
 }
 
+// Combine le préfixe de chemin de `site.baseUrl` (ex. "/mon-repo" pour un site
+// GitHub/Codeberg/GitLab Pages publié sous un sous-chemin plutôt qu'à la racine du
+// domaine, "" si publié à la racine) avec un chemin interne au site (`page.url`,
+// `item.url`, entrée de `site.nav`, toujours racine-relatif au contenu — cette forme sert
+// aussi à calculer les chemins de fichiers de sortie, voir urlToOutputPath() dans
+// renderer.jsx, donc jamais préfixée elle-même). Tout composant qui émet un `href` à
+// partir d'une valeur bindée doit passer par ici plutôt que d'utiliser le chemin brut —
+// sans ça les liens casseraient sur tout site publié hors de la racine du domaine (ex.
+// https://user.github.io/mon-repo/, cas le plus courant pour GitHub/Codeberg/GitLab
+// Pages sans domaine personnalisé).
+/**
+ * @param {Context} context
+ * @param {string} path
+ * @returns {string}
+ */
+export function resolveHref(context, path) {
+  let prefix = "";
+  try {
+    prefix = new URL(context.site.baseUrl).pathname.replace(/\/$/, "");
+  } catch {
+    prefix = "";
+  }
+  return prefix + path;
+}
+
 // Fabrique de Context. `title`/`baseUrl` : mêmes valeurs que celles passées à
 // buildConfigToml() aujourd'hui (titre du front matter de content/_index.md, base_url du
 // domaine personnalisé ou de l'URL de pages du fournisseur). `page`/`section` sont
