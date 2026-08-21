@@ -227,6 +227,7 @@ async function refreshSidebarPublishedLink(owner, repo) {
 async function renderRoute() {
   if (!api) return; // pas encore authentifié, rien à router pour l'instant
   appEl.classList.remove("layout-editor"); // remis par openLayoutEditor() si besoin
+  appEl.classList.remove("content-editor"); // remis par renderEditor() si besoin
   const route = parseHash(window.location.hash);
   if (route.view === "dashboard") {
     currentRepo = null;
@@ -831,6 +832,7 @@ async function openEditor(owner, name, path) {
 function renderEditor(path, fileSha, data) {
   const backHash = siteHash(currentRepo.owner, currentRepo.name);
   const kind = path.startsWith("content/blog/") ? "post" : "page";
+  appEl.classList.add("content-editor");
   appEl.innerHTML = `
     <div class="card editor-pane">
       <div class="editor-toolbar">
@@ -841,7 +843,11 @@ function renderEditor(path, fileSha, data) {
       <h2>${currentRepo.owner}/${currentRepo.name}</h2>
 
       <label>Contenu</label>
-      <div id="editorMount" style="margin-bottom:16px; min-height:220px;"></div>
+      <div id="editorMount"></div>
+
+      <div class="editor-toolbar editor-toolbar-bottom">
+        <button onclick="saveFile()">Publier</button>
+      </div>
     </div>
   `;
   renderEditor.currentSha = fileSha;

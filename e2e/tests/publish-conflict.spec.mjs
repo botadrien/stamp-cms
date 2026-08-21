@@ -42,7 +42,7 @@ test("publier une page modifiée entre-temps affiche un conflit, pas une erreur 
 
   // Première publication : crée le fichier.
   await typeInRichTextEditor(page, "Version initiale");
-  await page.getByRole("button", { name: "Publier" }).click();
+  await page.getByRole("button", { name: "Publier" }).first().click();
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 
   // Quelqu'un d'autre modifie ce même fichier directement via l'API, entre-temps.
@@ -66,7 +66,7 @@ test("publier une page modifiée entre-temps affiche un conflit, pas une erreur 
 
   // On republie depuis le POC sans avoir rechargé : le sha local est maintenant périmé.
   await typeInRichTextEditor(page, " — suite écrite sans recharger");
-  await page.getByRole("button", { name: "Publier" }).click();
+  await page.getByRole("button", { name: "Publier" }).first().click();
 
   await expect(page.locator(".status.error")).toContainText("modifiée entre-temps", { timeout: 10_000 });
   await expect(page.locator(".status.error")).not.toContainText(/\{|API error|status/i);

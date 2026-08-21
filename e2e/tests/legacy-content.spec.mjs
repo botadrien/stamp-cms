@@ -69,7 +69,7 @@ test("une page existante sans front matter n'empêche pas de publier une autre p
   await addPageCard.getByRole("button", { name: "Créer" }).click();
 
   await typeInRichTextEditor(page, "Nouvelle page malgré le fichier legacy.");
-  await page.getByRole("button", { name: "Publier" }).click();
+  await page.getByRole("button", { name: "Publier" }).first().click();
 
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 });

@@ -52,7 +52,7 @@ test("login OAuth2+PKCE réel, édition et commit d'un fichier Markdown", async 
 
   const text = `Écrit automatiquement le ${new Date().toISOString()} — accents: éàçù.`;
   await typeInRichTextEditor(page, text);
-  await page.getByRole("button", { name: "Publier" }).click();
+  await page.getByRole("button", { name: "Publier" }).first().click();
 
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 

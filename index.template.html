@@ -135,6 +135,28 @@
     flex: 1 1 auto;
     min-height: 0;
   }
+  /* Écran d'édition de contenu (voir renderEditor() dans app.js) : plein largeur,
+     comme l'éditeur de mise en page ci-dessus — l'éditeur Puck (barre de composants,
+     canvas, panneau de champs) a besoin de bien plus que la colonne centrée par défaut. */
+  main.content-editor {
+    max-width: none;
+    margin: 0;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+  }
+  main.content-editor .editor-pane {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  main.content-editor #editorMount {
+    flex: 1 1 auto;
+    min-height: 480px;
+    margin: 16px 0;
+  }
+  .editor-toolbar-bottom { justify-content: flex-end; margin-top: 0; }
   button {
     background: var(--accent);
     color: white;

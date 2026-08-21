@@ -102,7 +102,7 @@ test("une page standalone et un article de blog atterrissent à des chemins cont
   await addPageCard.locator("#newPageTitle").fill("page standalone e2e");
   await addPageCard.getByRole("button", { name: "Créer" }).click();
   await typeInRichTextEditor(page, "Contenu de la page standalone.");
-  await page.getByRole("button", { name: "Publier" }).click();
+  await page.getByRole("button", { name: "Publier" }).first().click();
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 
   // Écran "Articles" (barre latérale) pour ajouter l'article de blog.
@@ -112,7 +112,7 @@ test("une page standalone et un article de blog atterrissent à des chemins cont
   await addPostCard.locator("#newPostTitle").fill("article de blog e2e");
   await addPostCard.getByRole("button", { name: "Créer" }).click();
   await typeInRichTextEditor(page, "Contenu de l'article de blog.");
-  await page.getByRole("button", { name: "Publier" }).click();
+  await page.getByRole("button", { name: "Publier" }).first().click();
   await expect(page.locator(".status.success")).toContainText("Publié", { timeout: 60_000 });
 
   // Vérifications indépendantes via l'API : chemins réels sur main.
