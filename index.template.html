@@ -120,40 +120,6 @@
     margin: 0 auto;
     padding: 48px 24px;
   }
-  /* Écran d'édition : deux volets côte à côte plutôt que la colonne unique centrée
-     ci-dessus (voir renderEditor() dans app.js). */
-  main.editor-split {
-    max-width: none;
-    margin: 0;
-    display: flex;
-    align-items: stretch;
-    gap: 20px;
-    padding: 24px;
-  }
-  main.editor-split .editor-pane,
-  main.editor-split .preview-pane {
-    flex: 1 1 50%;
-    min-width: 0;
-    margin-bottom: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    /* L'éditeur Puck (canvas + menus de champs) positionne certains de ses widgets
-       flottants en "position: fixed" inline, calculé en JS : ça échappe à tout
-       overflow:hidden ancestor et se positionne par défaut relatif au viewport entier,
-       pas à ce volet. "contain: layout" fait de .editor-pane le containing block de ces
-       descendants fixed (CSS standard), pour qu'ils restent dans ce volet au lieu de
-       flotter par-dessus le volet d'aperçu voisin et intercepter ses clics. */
-    contain: layout;
-  }
-  main.editor-split #previewFrame {
-    flex: 1 1 auto;
-    min-height: 480px;
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #fff;
-  }
   /* Éditeur de mise en page Puck (voir openLayoutEditor() dans app.js) : plein
      bleed, l'UI de Puck (@puckeditor/core) gère elle-même toute sa mise en page interne
      (barre latérale de composants, panneau de champs, canvas) — pas de max-width/padding

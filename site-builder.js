@@ -230,13 +230,11 @@ async function setCustomDomain(owner, repo, domain) {
 // existe, sinon le défaut (SsgBuilder.defaultTemplates) — même logique de repli que
 // getSiteFiles() avant lui pour le thème Zola (fusion fichier par fichier, jamais un
 // tout-ou-rien) : un site n'ayant personnalisé qu'UN SEUL gabarit garde les trois autres
-// par défaut. `drafts` : { chemin: "texte" } — un gabarit en cours d'édition, pas encore
-// enregistré (même mécanique que pour le contenu, voir buildSiteFiles ci-dessous),
-// utilisé par l'aperçu en direct de l'éditeur de mise en page.
-function loadLayoutTemplates(repoFiles, drafts = {}) {
+// par défaut.
+function loadLayoutTemplates(repoFiles) {
   const templates = {};
   for (const [key, path] of Object.entries(LAYOUT_TEMPLATE_FILES)) {
-    const raw = path in drafts ? drafts[path] : repoFiles[path] ? new TextDecoder().decode(repoFiles[path]) : null;
+    const raw = repoFiles[path] ? new TextDecoder().decode(repoFiles[path]) : null;
     templates[key] = raw ? JSON.parse(raw) : SsgBuilder.defaultTemplates[key];
   }
   return templates;
@@ -254,28 +252,15 @@ function resolveBaseUrl(owner, repo, repoFiles) {
 }
 
 // Construit le site en mémoire (contenu du repo + gabarits Puck, personnalisés ou par
-// défaut) sans rien publier — utilisé à la fois par rebuildAndPublishSite() et par
-// buildPreviewSite() ci-dessous, qui ne diffèrent qu'après cet appel (l'un publie sur
-// pages, l'autre sert direct via le service worker de preview). `repoFiles` : { chemin:
-// Uint8Array } tel que renvoyé par getRepoFiles() (repo-cache.js), le contenu du dépôt de
-// site tel quel sur la branche main. `drafts` : { chemin: "texte" } — une page/un article
-// (ou un gabarit, voir loadLayoutTemplates) en cours d'édition, pas encore enregistré sur
-// main, qui doit prendre le pas sur le contenu du repo pour cette preview. baseUrl doit
-// être absolue (voir ssg-src/context.js) : l'URL réelle du site publié pour
-// rebuildAndPublishSite(), l'URL /preview/<owner>/<repo>/ pour buildPreviewSite() — sinon
-// les liens de nav pointeraient en absolu vers le vrai domaine de prod (qui n'a pas
-// encore ce contenu), hors du scope intercepté par sw.js.
-async function buildSiteFiles(owner, repo, repoFiles, baseUrl, drafts = {}) {
-  const contentPaths = new Set(
-    Object.keys(repoFiles).filter((p) => p.startsWith("content/") && p.endsWith(".puck.json")),
-  );
-  for (const path of Object.keys(drafts)) {
-    if (path.startsWith("content/") && path.endsWith(".puck.json")) contentPaths.add(path);
-  }
+// défaut) sans rien publier — utilisé par rebuildAndPublishSite() ci-dessous, juste avant
+// la publication. `repoFiles` : { chemin: Uint8Array } tel que renvoyé par getRepoFiles()
+// (repo-cache.js), le contenu du dépôt de site tel quel sur la branche main.
+async function buildSiteFiles(owner, repo, repoFiles, baseUrl) {
+  const contentPaths = Object.keys(repoFiles).filter((p) => p.startsWith("content/") && p.endsWith(".puck.json"));
 
   const contentJson = {};
   for (const path of contentPaths) {
-    contentJson[path] = path in drafts ? drafts[path] : new TextDecoder().decode(repoFiles[path]);
+    contentJson[path] = new TextDecoder().decode(repoFiles[path]);
   }
   if (!contentJson["content/_index.puck.json"]) contentJson["content/_index.puck.json"] = buildIndexStub(repo);
   if (!contentJson["content/blog/_index.puck.json"]) contentJson["content/blog/_index.puck.json"] = buildBlogIndexStub();
@@ -286,22 +271,8 @@ async function buildSiteFiles(owner, repo, repoFiles, baseUrl, drafts = {}) {
     files: contentJson,
     title,
     baseUrl,
-    templates: loadLayoutTemplates(repoFiles, drafts),
+    templates: loadLayoutTemplates(repoFiles),
   });
-}
-
-// Rebuild d'aperçu : récupère le repo (servi depuis le cache local si déjà à jour, voir
-// getRepoFiles) et y substitue le brouillon en cours d'édition, non encore enregistré.
-// Ne publie rien : la sortie est servie directement par sw.js. previewBaseUrl : voir
-// previewBaseUrl() dans app.js — même chemin que celui utilisé pour naviguer l'iframe.
-async function buildPreviewSite(owner, repo, draftPath, draftText, previewBaseUrl) {
-  const repoFiles = await getRepoFiles(owner, repo, api);
-  try {
-    return await buildSiteFiles(owner, repo, repoFiles, previewBaseUrl, { [draftPath]: draftText });
-  } catch (err) {
-    console.error("Échec du build (aperçu):", err.log || err.message);
-    throw err;
-  }
 }
 
 // Récupère tout le dépôt (depuis le cache local ou fraîchement téléchargé si le sha
@@ -384,9 +355,8 @@ async function buildLayoutEditorData(owner, repo, key) {
 
 // Enregistre un gabarit personnalisé (appelé depuis onPublish du bouton "Publish" natif
 // de Puck, voir openLayoutEditor() dans app.js) et republie immédiatement le site avec —
-// pas de brouillon local à gérer comme pour l'éditeur de contenu (voir
-// buildPreviewSite/triggerPreviewBuild) : le canvas de Puck EST déjà l'aperçu en direct
-// des changements, pas besoin d'un aller-retour de build à part pour ça.
+// le canvas de Puck EST déjà l'aperçu en direct des changements, pas besoin d'un
+// aller-retour de build à part pour ça.
 async function saveLayoutTemplate(owner, repo, key, data) {
   const path = LAYOUT_TEMPLATE_FILES[key];
   let sha = null;

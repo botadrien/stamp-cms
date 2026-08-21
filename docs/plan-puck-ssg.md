@@ -152,6 +152,13 @@ WASM de 15 Mo, plus de shim WASI, plus de contournements `rayon`/`canonicalize`/
 `grass`. L'aperçu en direct devrait donc devenir plus simple qu'aujourd'hui, pas plus
 compliqué.
 
+> **Mise à jour (2026-08-21)** : fonctionnalité retirée. Le volet d'aperçu séparé
+> (`buildPreviewSite()`, service worker `sw.js`) a été supprimé de l'écran d'édition de
+> contenu — l'éditeur `RichText` restreint (voir README "Édition de contenu") n'en avait
+> plus vraiment besoin dans les mêmes proportions que l'ancien BlockNote (un seul champ
+> richtext, pas un document Markdown complet à prévisualiser en contexte). L'écran de
+> mise en page garde son propre aperçu en direct (le canvas Puck lui-même).
+
 ## Grandes tâches
 
 1. **Modèle contexte/données** — définir la forme exacte de l'objet `page`/`section`/

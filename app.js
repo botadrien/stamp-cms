@@ -28,63 +28,19 @@ function toggleTheme() {
 
 applyThemeToggleIcon();
 
-// Aperçu en direct de l'éditeur — voir sw.js (service worker qui sert /preview/...) et
-// buildPreviewSite() dans site-builder.js. swReady résout une fois le worker actif,
-// avant quoi pointer un iframe vers /preview/... ferait une vraie requête réseau (404).
-let swReady = null;
-// { owner, repo, path, building, dirty, debounceTimer } de l'écran d'édition ouvert —
-// recréé à chaque openEditor(), jamais réutilisé entre deux pages.
-let previewState = null;
-
-function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) {
-    swReady = Promise.resolve(null);
-    return;
-  }
-  swReady = navigator.serviceWorker
-    .register("sw.js")
-    .then(() => navigator.serviceWorker.ready) // { active, ... } une fois installé+activé
-    .catch(() => null);
-}
-
-// Le worker actif (registration.active), pas navigator.serviceWorker.controller : ce
-// dernier ne reflète que si le document *courant* est contrôlé, ce qui ne se met à jour
-// qu'après coup (clients.claim()) — alors qu'une *nouvelle* navigation (notre iframe) vers
-// une URL dans le scope du worker passe par lui dès qu'il est actif, sans lien avec le
-// statut de contrôle du document parent.
-async function getPreviewWorker() {
-  const registration = await swReady;
-  return registration ? registration.active : null;
-}
-
-// postMessage() revient avant que le worker ait traité le message — attendre l'accusé de
-// réception (voir sw.js) avant de naviguer l'iframe, sinon la requête /preview/... peut
-// arriver avant que le worker ait fini de mettre sa map à jour.
-function sendToPreviewWorker(worker, message) {
-  return new Promise((resolve) => {
-    const channel = new MessageChannel();
-    channel.port1.onmessage = () => resolve();
-    worker.postMessage(message, [channel.port2]);
-  });
-}
-
 function renderStatus(message, type = "info") {
   return `<p class="status ${type}">${message}</p>`;
 }
 
-// Quitte l'écran d'édition proprement : démonte l'éditeur riche et coupe tout aperçu en
-// cours/à venir (timer de débounce, build en vol dont le résultat serait jeté de toute
-// façon via le garde previewState !== state dans triggerPreviewBuild()).
+// Quitte l'écran d'édition proprement : démonte les éditeurs Puck montés (contenu ou mise
+// en page, selon l'écran quitté — l'autre est déjà démonté).
 function leaveEditor() {
   PuckContentEditor.unmount();
   PuckLayoutEditor.unmount();
-  if (previewState) clearTimeout(previewState.debounceTimer);
-  previewState = null;
 }
 
 function renderLogin(extraMessage = "") {
   leaveEditor();
-  appEl.classList.remove("editor-split");
   userbarEl.innerHTML = "";
   sidebarEl.hidden = true;
   sidebarEl.innerHTML = "";
@@ -270,7 +226,6 @@ async function refreshSidebarPublishedLink(owner, repo) {
 // interne, ou bouton Précédent/Suivant du navigateur).
 async function renderRoute() {
   if (!api) return; // pas encore authentifié, rien à router pour l'instant
-  appEl.classList.remove("editor-split"); // remis par renderEditor() si besoin
   appEl.classList.remove("layout-editor"); // remis par openLayoutEditor() si besoin
   const route = parseHash(window.location.hash);
   if (route.view === "dashboard") {
@@ -876,7 +831,6 @@ async function openEditor(owner, name, path) {
 function renderEditor(path, fileSha, data) {
   const backHash = siteHash(currentRepo.owner, currentRepo.name);
   const kind = path.startsWith("content/blog/") ? "post" : "page";
-  appEl.classList.add("editor-split");
   appEl.innerHTML = `
     <div class="card editor-pane">
       <div class="editor-toolbar">
@@ -889,121 +843,11 @@ function renderEditor(path, fileSha, data) {
       <label>Contenu</label>
       <div id="editorMount" style="margin-bottom:16px; min-height:220px;"></div>
     </div>
-    <div class="card preview-pane">
-      <div id="previewStatus"></div>
-      <iframe id="previewFrame" title="Aperçu du site"></iframe>
-    </div>
   `;
   renderEditor.currentSha = fileSha;
   renderEditor.currentPath = path;
 
-  // Le contenu du dépôt (pages) vient du cache local (getRepoFiles, voir repo-cache.js)
-  // — plus besoin de le pré-charger ici : buildPreviewSite() s'en charge à chaque
-  // rebuild d'aperçu, et l'échec éventuel (ex. hors ligne) remonte via le catch() de
-  // triggerPreviewBuild() plutôt que d'être vérifié en amont.
-  previewState = {
-    owner: currentRepo.owner,
-    repo: currentRepo.name,
-    path,
-    previewTarget: pageUrl(path),
-    getDraft: () => JSON.stringify(PuckContentEditor.getData()),
-    building: false,
-    dirty: false,
-    debounceTimer: null,
-  };
-
-  PuckContentEditor.mount("editorMount", { data, kind, onChange: onEditorContentChange });
-  triggerPreviewBuild();
-}
-
-// Débounce : une frappe redémarre le délai plutôt que de builder à chaque caractère —
-// un rebuild complet du site prend ~11-15s (voir AGENTS.md), pas question de l'appeler
-// en continu pendant la frappe.
-function onEditorContentChange() {
-  if (!previewState) return;
-  previewState.dirty = true;
-  clearTimeout(previewState.debounceTimer);
-  previewState.debounceTimer = setTimeout(triggerPreviewBuild, 1800);
-}
-
-async function triggerPreviewBuild() {
-  const state = previewState;
-  if (!state || state.building) {
-    if (state) state.dirty = true;
-    return;
-  }
-  // Un build qui démarre annule tout timer de débounce en attente (ex. le rattrapage
-  // "dirty" lancé depuis finally ci-dessous, avant même que le timer programmé par
-  // onEditorContentChange() n'ait eu le temps de se déclencher) — sinon ce timer
-  // redéclenche un rebuild redondant (déjà à jour) juste après, qui recharge l'iframe
-  // une 3e fois pour rien (flicker observé en e2e : le clic sur un lien de nav pouvait
-  // tomber pile pendant ce rechargement de trop et échouer).
-  clearTimeout(state.debounceTimer);
-  state.dirty = false;
-  state.building = true;
-
-  const statusEl = document.getElementById("previewStatus");
-  if (statusEl) statusEl.innerHTML = renderStatus("Génération de l'aperçu…", "info");
-
-  try {
-    const draft = await state.getDraft();
-    const { files } = await buildPreviewSite(
-      state.owner,
-      state.repo,
-      state.path,
-      draft,
-      previewBaseUrl(state.owner, state.repo)
-    );
-    if (previewState !== state) return; // écran quitté entre-temps
-
-    const worker = await getPreviewWorker();
-    if (worker) {
-      await sendToPreviewWorker(worker, { type: "update-preview", owner: state.owner, repo: state.repo, files });
-      reloadPreviewFrame(state);
-      if (statusEl) statusEl.innerHTML = "";
-    } else if (statusEl) {
-      statusEl.innerHTML = renderStatus("Aperçu indisponible (service worker non supporté).", "error");
-    }
-  } catch (err) {
-    if (previewState === state && statusEl) {
-      statusEl.innerHTML = renderStatus(`Aperçu indisponible : ${err.message}`, "error");
-    }
-  } finally {
-    if (previewState === state) {
-      state.building = false;
-      if (state.dirty) triggerPreviewBuild();
-    }
-  }
-}
-
-// Relatif à l'URL de la page (pas "/preview/..." en dur) : l'appli peut être déployée
-// sous un sous-chemin (voir config.js), et le scope du service worker ne couvre que son
-// propre répertoire — une URL absolue à la racine du domaine échapperait à ce scope et
-// ne serait jamais interceptée par sw.js (vraie requête réseau, 404). `target` : URL de
-// page relative au site buildé (ex. "/a-propos/", "/" — voir previewState.previewTarget).
-function previewUrl(owner, repo, target) {
-  const relative = `preview/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}${target}`;
-  return new URL(relative, document.baseURI).href;
-}
-
-// base_url passée au renderer pour un build d'aperçu (voir buildPreviewSite() dans
-// site-builder.js) : sans ça, les liens de nav/pages seraient générés en absolu vers le
-// vrai domaine de prod (api.pagesUrl), qui n'a pas encore ce contenu et n'est de toute
-// façon pas dans le scope intercepté par sw.js — la nav casserait dans l'aperçu.
-function previewBaseUrl(owner, repo) {
-  const relative = `preview/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/`;
-  return new URL(relative, document.baseURI).href;
-}
-
-function reloadPreviewFrame(state) {
-  const frame = document.getElementById("previewFrame");
-  if (!frame) return;
-  const target = previewUrl(state.owner, state.repo, state.previewTarget);
-  if (frame.src === target) {
-    frame.contentWindow.location.reload();
-  } else {
-    frame.src = target;
-  }
+  PuckContentEditor.mount("editorMount", { data, kind });
 }
 
 async function saveFile() {
@@ -1047,7 +891,6 @@ async function saveFile() {
 }
 
 async function init() {
-  registerServiceWorker();
   renderLoading("Vérification de la session…");
 
   try {

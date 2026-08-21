@@ -12,8 +12,6 @@ Gratuit à 100% et toujours :
 **[Démo en ligne](https://botadrien.github.io/stamp-cms/)** — déployée automatiquement sur GitHub Pages à chaque push (voir `.github/workflows/deploy-pages.yml`).
 > Note : la connexion sur cette démo suppose que `https://botadrien.github.io/stamp-cms/` soit déclarée comme Redirect URI de l'application OAuth2 correspondante sur codeberg.org (réglage manuel, une seule fois — voir `config.js`). **Dépôt renommé** (`cmstatic` → `stamp-cms`) : ce Redirect URI doit être mis à jour à la main sur codeberg.org, sinon la connexion sur la démo casse.
 
-![Édition d'une page avec aperçu en direct du site généré, côte à côte](docs/screenshots/live-preview.png)
-
 ## Fonctionnalités
 
 - **Connexion sans serveur** : OAuth2 + PKCE directement vers Codeberg ou GitLab (pas besoin de bridge), ou jeton d'accès personnel collé à la main pour GitHub (voir "Forges git" ci-dessous pour pourquoi GitHub n'a pas droit au même flow OAuth). Droits d'accès = rôles natifs du fournisseur choisi.
@@ -21,7 +19,6 @@ Gratuit à 100% et toujours :
 - **Édition riche** : éditeur [Puck](https://puckeditor.com/) (même moteur que la mise en page, voir plus bas) restreint à un bloc de texte riche par page/article, avec panneau de champs pour le titre/la date.
   Contenu stocké en JSON Puck, source de vérité dans le dépôt Git, commit direct à chaque enregistrement — le corps de chaque page/article est injecté au rendu dans le gabarit partagé de son type de route (voir `ssg-src/template-merge.js`).
 - **Génération du site** avec un renderer maison piloté par [Puck](https://puckeditor.com/) (`ssg-src/`), exécuté **dans le navigateur** à chaque publication — voir `docs/plan-puck-ssg.md` pour la conception complète (remplace l'ancien pipeline Zola/Tera).
-- **Aperçu en direct** : pendant l'édition, un volet à côté de l'éditeur montre le site réellement généré (nav, mise en page) à partir du brouillon en cours — rien n'est publié tant qu'on n'a pas cliqué sur "Publier".
 - **Publication en un clic** : chaque "Publier" compile le site et le publie sur la branche `pages` du dépôt.
 - **Contenu structuré** : pages et articles de blog gérés séparément (triés par date pour le blog), écran "Réglages du site" pour le titre du blog.
 - **Suppression d'un site** : depuis "Réglages du site", zone dangereuse qui supprime le dépôt entier chez le fournisseur (irréversible, il faut retaper le nom du dépôt pour confirmer).
@@ -202,8 +199,8 @@ par Puck (`{ root, content }`, voir `ssg-src/renderer.jsx`). Absent -> le gabari
 défaut correspondant s'applique, fusion fichier par fichier comme l'ancien thème Zola
 avant lui (un site n'ayant personnalisé qu'UN SEUL gabarit garde les trois autres par
 défaut). Le bouton "Publish" natif de Puck écrit ce fichier puis republie tout le site
-(`saveLayoutTemplate()` dans `site-builder.js`) — pas de brouillon local à gérer comme
-pour l'éditeur de contenu : le canvas de Puck EST déjà l'aperçu en direct.
+(`saveLayoutTemplate()` dans `site-builder.js`) — le canvas de Puck EST déjà l'aperçu en
+direct des changements, pas d'étape à part.
 
 **Aperçu avec les vraies données** : le canvas affiche les composants avec de vrais
 bindings résolus (nav du site, dernier article, etc.), pas des données inventées —
@@ -245,13 +242,6 @@ Réglage stocké dans un nouveau fichier **`site.toml`** à la racine de chaque 
 - **GitLab Pages** : API dédiée (`/projects/:id/pages/domains`), avec une étape de vérification DNS (enregistrement TXT `gitlab-pages-verification-code=...`) obligatoire sur gitlab.com avant que le domaine ne serve réellement le site (`auto_ssl_enabled` pour un certificat Let's Encrypt automatique).
 
 **Vérification DNS en direct** (`dns-check.js`) : un vrai lookup DNS n'est pas possible depuis un navigateur, donc interrogation de l'API DNS-over-HTTPS de Cloudflare (`cloudflare-dns.com/dns-query`, CORS ouvert vérifié en direct) pour savoir si le CNAME pointe déjà vers la bonne cible — utilisé pour le bouton "Vérifier le DNS" et comme garde-fou avant de repointer le webhook Codeberg (avertissement si le DNS ne semble pas encore configuré, plutôt que de casser la publication à l'aveugle).
-
-### Aperçu en direct
-
-Pendant l'édition d'une page, un rebuild tourne en arrière-plan (débounce ~1,8s après la dernière frappe) sur le dépôt déjà publié + le brouillon en cours, non enregistré (`buildPreviewSite()` dans `site-builder.js`).
-Sa sortie (un site multi-pages avec de vrais liens relatifs entre pages) est servie par un **service worker** (`sw.js`) qui intercepte les requêtes sous `/preview/<owner>/<repo>/...` et répond directement depuis une map en mémoire — pas de blob URL ni de `srcdoc` d'iframe, qui casseraient la navigation entre pages.
-Le renderer reçoit un `baseUrl` différent pour ce build (`/preview/...` plutôt que l'URL réelle du site publié), sinon les liens de nav seraient générés en absolu vers un domaine de prod qui n'a pas encore ce contenu.
-Rien n'est publié sur le fournisseur tant qu'on ne clique pas sur "Publier" — l'aperçu ne touche que la mémoire du navigateur.
 
 ### Inclusion des packages JS
 

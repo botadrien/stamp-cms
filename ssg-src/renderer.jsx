@@ -125,9 +125,9 @@ export async function buildSite({ files, title, baseUrl, templates }) {
   output["sitemap.xml"] = buildSitemap(rootContext);
 
   // Encodé en Uint8Array pour tout le monde, jamais en string : même contrat que
-  // ZolaBuilder.buildSite() avant lui (voir editor-src/zola-builder.js) — les
-  // consommateurs (api.publishFiles(), qui base64-encode via bytesToBase64(), et sw.js
-  // pour l'aperçu) attendent des octets, pas du texte.
+  // ZolaBuilder.buildSite() avant lui (voir editor-src/zola-builder.js) — le
+  // consommateur (api.publishFiles(), qui base64-encode via bytesToBase64()) attend des
+  // octets, pas du texte.
   const encoder = new TextEncoder();
   /** @type {Object.<string, Uint8Array>} */
   const encodedOutput = {};
