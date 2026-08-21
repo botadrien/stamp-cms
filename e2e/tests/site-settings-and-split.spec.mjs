@@ -67,7 +67,7 @@ test("modifier le titre du blog depuis Réglages du site republie le site", asyn
   const titleInput = page.locator("#blogTitle");
   await expect(titleInput).toBeVisible({ timeout: 10_000 });
   await titleInput.fill(newTitle);
-  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await page.locator("#settingsForm").getByRole("button", { name: "Enregistrer" }).click();
 
   await expect(page.locator("#settingsStatus .status.success")).toContainText("Publié", {
     timeout: 60_000,
