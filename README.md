@@ -163,10 +163,11 @@ Bundlé pour le navigateur via `editor-src/ssg-builder.js` -> `ssg-builder.bundl
 Chaque page/article est édité avec Puck (`editor-src/puck-content-editor.jsx`, global
 `PuckContentEditor`) — une Config Puck restreinte à une poignée de blocs de contenu
 (`ssg-src/components/`) : `RichText` (texte formaté, champ natif `type: "richtext"` de
-Puck/Tiptap embarqué), `Callout` (encart), `Quote` (citation), `Divider` (séparateur),
-`CodeBlock` (bloc de code) et `Accordion` (accordéon/volet repliable) — inspirés des blocs
-Notion/Gutenberg/gouvfr-docs, volontairement sans aucun qui nécessite un upload (pas
-d'image, pas de galerie). Restreinte volontairement : impossible d'y glisser un
+Puck/Tiptap embarqué), `Heading` (titre H2/H3/H4 autonome), `Callout` (encart), `Quote`
+(citation), `Divider` (séparateur), `CodeBlock` (bloc de code), `Accordion` (accordéon/
+volet repliable) et `Space` (espaceur vertical) — inspirés des blocs Notion/Gutenberg/
+gouvfr-docs, volontairement sans aucun qui nécessite un upload (pas d'image, pas de
+galerie). Restreinte volontairement : impossible d'y glisser un
 Nav/Hero/Footer, le contenu d'une page/d'un article reste un corps de texte — nav/hero/
 footer restent définis une fois par type de route (voir "Éditeur de mise en page Puck"
 plus bas). Titre (et date pour un article) s'éditent via le panneau de champs racine de

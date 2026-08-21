@@ -5,8 +5,8 @@
 //
 // Contrairement à l'éditeur de mise en page (config complète, tous les composants de la
 // palette), cet éditeur utilise une Config Puck restreinte (voir contentPuckConfig
-// ci-dessous) : seuls des blocs de contenu (RichText + Callout/Quote/Divider/CodeBlock/
-// Accordion, voir ssg-src/components/) y sont enregistrés, donc il est structurellement
+// ci-dessous) : seuls des blocs de contenu (RichText + Heading/Callout/Quote/Divider/
+// CodeBlock/Accordion/Space, voir ssg-src/components/) y sont enregistrés, donc il est structurellement
 // impossible d'y glisser un Nav/Hero/Footer — le contenu d'un article/d'une page reste un
 // corps de texte, jamais sa propre mise en page (nav/hero/footer restent définis une fois
 // par type de route, voir templates/page.puck.json / templates/article.puck.json). Ces
@@ -36,11 +36,13 @@ import { createRoot } from "react-dom/client";
 import { Puck } from "@puckeditor/core";
 import "@puckeditor/core/puck.css";
 import { RichText } from "../ssg-src/components/rich-text.jsx";
+import { Heading } from "../ssg-src/components/heading.jsx";
 import { Callout } from "../ssg-src/components/callout.jsx";
 import { Quote } from "../ssg-src/components/quote.jsx";
 import { Divider } from "../ssg-src/components/divider.jsx";
 import { CodeBlock } from "../ssg-src/components/code-block.jsx";
 import { Accordion } from "../ssg-src/components/accordion.jsx";
+import { Space } from "../ssg-src/components/space.jsx";
 
 const ROOT_FIELDS_BASE = {
   title: { type: "text", label: "Titre" },
@@ -51,7 +53,7 @@ const ROOT_FIELDS_POST = {
   date: { type: "text", label: "Date (AAAA-MM-JJ)" },
 };
 
-const CONTENT_COMPONENTS = { RichText, Callout, Quote, Divider, CodeBlock, Accordion };
+const CONTENT_COMPONENTS = { RichText, Heading, Callout, Quote, Divider, CodeBlock, Accordion, Space };
 
 function configFor(kind) {
   return {
