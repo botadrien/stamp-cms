@@ -12,7 +12,7 @@ Gratuit à 100% et toujours :
 **[Démo en ligne](https://botadrien.github.io/stamp-cms/)** — déployée automatiquement sur GitHub Pages à chaque push (voir `.github/workflows/deploy-pages.yml`).
 > Note : la connexion sur cette démo suppose que `https://botadrien.github.io/stamp-cms/` soit déclarée comme Redirect URI de l'application OAuth2 correspondante sur codeberg.org (réglage manuel, une seule fois — voir `config.js`). **Dépôt renommé** (`cmstatic` → `stamp-cms`) : ce Redirect URI doit être mis à jour à la main sur codeberg.org, sinon la connexion sur la démo casse.
 
-![Édition d'une page avec aperçu en direct du site généré par Zola, côte à côte](docs/screenshots/live-preview.png)
+![Édition d'une page avec aperçu en direct du site généré, côte à côte](docs/screenshots/live-preview.png)
 
 ## Fonctionnalités
 
@@ -20,14 +20,13 @@ Gratuit à 100% et toujours :
 - **Multi-fournisseur** : Codeberg, GitHub et GitLab (gitlab.com uniquement, pas de self-hosted), via une couche d'abstraction commune (`api.js`/`github-api.js`/`gitlab-api.js`/`providers.js`) pensée pour qu'ajouter un fournisseur de plus n'exige pas de refonte.
 - **Édition riche** : éditeur visuel similaire à Notion ([BlockNote.js](https://www.blocknote.js.org/) sur [ProseMirror](https://prosemirror.net/))
   Contenu stocké en Markdown, source de vérité dans le dépôt Git, commit direct à chaque enregistrement.
-- **Génération du site** avec [Zola](https://www.getzola.org/), compilé en WebAssembly et exécuté **dans le navigateur** à chaque publication.
-- **Aperçu en direct** : pendant l'édition, un volet à côté de l'éditeur montre le site réellement généré par Zola (nav, thème, mise en page) à partir du brouillon en cours — rien n'est publié tant qu'on n'a pas cliqué sur "Publier".
+- **Génération du site** avec un renderer maison piloté par [Puck](https://puckeditor.com/) (`ssg-src/`), exécuté **dans le navigateur** à chaque publication — voir `docs/plan-puck-ssg.md` pour la conception complète (remplace l'ancien pipeline Zola/Tera).
+- **Aperçu en direct** : pendant l'édition, un volet à côté de l'éditeur montre le site réellement généré (nav, mise en page) à partir du brouillon en cours — rien n'est publié tant qu'on n'a pas cliqué sur "Publier".
 - **Publication en un clic** : chaque "Publier" compile le site et le publie sur la branche `pages` du dépôt.
 - **Contenu structuré** : pages et articles de blog gérés séparément (triés par date pour le blog), écran "Réglages du site" pour le titre du blog.
 - **Suppression d'un site** : depuis "Réglages du site", zone dangereuse qui supprime le dépôt entier chez le fournisseur (irréversible, il faut retaper le nom du dépôt pour confirmer).
 - **Domaine personnalisé** : depuis "Réglages du site", sous-domaine uniquement pour l'instant (pas de domaine racine/apex) — instructions DNS et vérification en direct (CNAME, TXT le cas échéant) propres au fournisseur connecté, voir "Domaine personnalisé" plus bas pour le détail par fournisseur.
-- **Thème** : un thème vendoré, volks-typo, copié dans le dépôt de chaque site à sa création (choix de thème prévu plus tard, voir "Roadmap") — voir "Lecture du dépôt : archive complète + cache local" et "Thème copié dans chaque site" plus bas pour l'architecture.
-- **Templates** : onglet dédié pour éditer le code (HTML/Tera) des gabarits du thème, avec preview live comme pour le contenu — voir "Thème copié dans chaque site" plus bas.
+- **Mise en page visuelle** : écran dédié (onglet "Mise en page") qui ouvre l'éditeur [Puck](https://puckeditor.com/) — glisser-déposer des blocs (nav, hero, grille de fonctionnalités, cartes/extraits d'article, footer, etc.), réglage de leurs props, aperçu en direct avec les vraies données du site. Un gabarit par type de route (accueil, page, article, index du blog) ; tant qu'il n'a pas été personnalisé, un site retombe sur le gabarit par défaut (`ssg-src/default-templates.js`), partagé par tous les sites — voir "Éditeur de mise en page Puck" plus bas pour l'architecture.
 - **Topic `stamp-cms`** : posé automatiquement sur chaque dépôt créé (topic Forgejo/GitHub/GitLab, public et cherchable). La liste "Tes sites" ne montre que les dépôts portant ce topic (les autres dépôts du compte n'y apparaissent pas), et les sites restent trouvables par recherche de topic côté fournisseur. Les dépôts créés avant l'ajout de cette fonctionnalité n'ont pas le topic et n'apparaissent donc plus dans la liste (pas de migration automatique, cohérent avec le stade très précoce du projet).
 
 ## Feuille de route
@@ -96,8 +95,8 @@ l'image GitLab CE est nettement plus lourde/lente à démarrer (plusieurs minute
 - Domaine personnalisé : traité pour les sous-domaines (voir "Domaine personnalisé" plus bas) — les domaines racine/apex restent un point ouvert (mécanisme A/AAAA/ALIAS différent par fournisseur, pas encore supporté)
 - Médias dans le dépôt Git : ça marche, mais avec des limites de taille (repos volumineux, fichiers individuels plafonnés) — à surveiller si beaucoup de photos/vidéos
 - Rester multi-fournisseur à terme sans complexifier le MVP
-- Revenir à un gabarit de thème par défaut (annuler une personnalisation) : pas encore de pattern de suppression de fichier dans les clients API (seulement création/mise à jour) — nécessaire pour ça
-- Resynchroniser le thème d'un site avec des correctifs futurs de `themes/volks-typo/` : pas de mécanisme prévu pour l'instant (voir "Thème copié dans chaque site")
+- Palette de composants Puck encore minimale (hero, grille, CTA, carte/extrait d'article, nav, footer, corps de page) — pas de composant image, par exemple
+- Un seul gabarit par type de route (accueil/page/article/index du blog) : pas de gabarit dédié à UNE page en particulier (ex. une page d'accueil visuellement différente d'une autre page standalone), voir "Éditeur de mise en page Puck" plus bas
 
 ## Pistes explorées et mises de côté
 
@@ -149,37 +148,71 @@ GitLab identifie aussi ses projets par un chemin `owner/repo` URL-encodé en un 
 
 ### Génération du site dans le navigateur
 
-On a compilé [Zola](https://www.getzola.org/) en WASM grace au travail de Dylan Staley cf [ce billet](https://dstaley.com/posts/running-zola-on-wasm/).
-C'est possible car on fait en sorte que Zola ne dépend d'aucun process externe : `rayon` (parallélisme) désactivé, `canonicalize()` contourné (non supporté par WASI), et Sass compilé par `grass` (Rust pur) plutôt que par LibSass/Dart Sass.
-Le binaire compilé `vendor/zola.wasm` fait ~15 Mo
-On le commit tel quel car sa compilation demande un toolchain Rust + wasi-sdk trop lourd pour `npm run build` (cf `scripts/build-zola-wasm.sh`)
-Il tourne dans le navigateur via [`@bjorn3/browser_wasi_shim`](https://github.com/bjorn3/browser_wasi_shim)
-On l'utilise avec un système de fichiers entièrement en mémoire (voir `editor-src/zola-builder.js`).
+Le site est rendu par un renderer maison piloté par [Puck](https://puckeditor.com/)
+(`ssg-src/`, voir `docs/plan-puck-ssg.md` pour la conception complète), en JS pur —
+pas de binaire WASM, pas de shim WASI. `ssg-src/content-loader.js` parse
+`content/*.md` (front matter TOML + Markdown -> HTML via `remark`), `ssg-src/context.js`
+construit le contexte de données, `ssg-src/resolver.js` résout les bindings des gabarits
+Puck, et `ssg-src/renderer.jsx` orchestre le tout : parcourt les routes du site, rend
+chaque page via `<Render>` de Puck + `renderToStaticMarkup`, génère `rss.xml`/`sitemap.xml`.
+Bundlé pour le navigateur via `editor-src/ssg-builder.js` -> `ssg-builder.bundle.js`
+(global `SsgBuilder`), même principe que `editor.jsx`/`RichEditor`.
 
-Lors de la publication du site, on l'éxecute navigateur puis chaque fichier compilé (HTML, CSS images) produit est publié sur la branche `pages`.
+Un site retombe sur le gabarit par défaut (`ssg-src/default-templates.js`) tant qu'il
+n'a pas été personnalisé via l'éditeur de mise en page (voir section dédiée ci-dessous).
 
-Chaque site est buildé avec le thème Zola vendoré dans l'app, **volks-typo** (`themes/volks-typo/`, récupéré via `scripts/fetch-theme-volks-typo.sh`) — copié dans le dépôt du site à sa création plutôt que relu depuis l'app à chaque build, voir "Thème copié dans chaque site" ci-dessous pour l'architecture complète et le point d'accroche pour un choix de thème plus tard.
+Lors de la publication, chaque fichier produit (HTML, `rss.xml`, `sitemap.xml`) est
+publié sur la branche `pages`.
+
+### Éditeur de mise en page Puck
+
+Écran "Mise en page" (sidebar) : liste les 4 types de gabarit (accueil, page standalone,
+article de blog, index du blog — mêmes clés que `ssg-src/default-templates.js`), ouvre
+l'éditeur visuel `<Puck>` (`@puckeditor/core`) en plein écran sur celui choisi
+(`openLayoutEditor()` dans `app.js`).
+
+**Stockage** : un fichier `templates/<nom>.puck.json` par gabarit personnalisé, sur la
+branche `main` (`LAYOUT_TEMPLATE_FILES` dans `site-builder.js`) — le JSON brut produit
+par Puck (`{ root, content }`, voir `ssg-src/renderer.jsx`). Absent -> le gabarit par
+défaut correspondant s'applique, fusion fichier par fichier comme l'ancien thème Zola
+avant lui (un site n'ayant personnalisé qu'UN SEUL gabarit garde les trois autres par
+défaut). Le bouton "Publish" natif de Puck écrit ce fichier puis republie tout le site
+(`saveLayoutTemplate()` dans `site-builder.js`) — pas de brouillon local à gérer comme
+pour l'éditeur de contenu : le canvas de Puck EST déjà l'aperçu en direct.
+
+**Aperçu avec les vraies données** : le canvas affiche les composants avec de vrais
+bindings résolus (nav du site, dernier article, etc.), pas des données inventées —
+`buildLayoutEditorData()` (`site-builder.js`) construit un Context de prévisualisation
+(`SsgBuilder.buildContext()`/`loadCollections()`) à partir du contenu réel du site, avec
+la première page/le premier article existant comme représentant·e pour les gabarits
+"page"/"article".
+
+**Contrainte cross-bundle React** : `editor-src/puck-layout-editor.jsx` (bundlé à part,
+`puck-layout-editor.bundle.js`, global `PuckLayoutEditor`) réimporte la palette de
+composants (`ssg-src/registry.jsx`) au lieu de réutiliser `SsgBuilder`'s — chaque bundle
+esbuild IIFE embarque sa propre copie de React (voir "Inclusion des packages JS"
+ci-dessous), et les fonctions `render()` de la palette (qui appellent `useContext`, voir
+`ssg-src/ssg-context.js`) doivent tourner sous LE MÊME React que celui qui pilote
+`<Puck>` — sinon erreur "Invalid hook call", ou pire, un `Context.Provider` dont la
+valeur ne traverse jamais jusqu'au composant. Seules des données pures (le `Context`
+lui-même) traversent la frontière entre bundles sans risque. Pour la même raison, le
+canvas d'édition est rendu avec `iframe: { enabled: false }` (rendu inline dans le
+document plutôt que dans un iframe isolé, qui serait un realm JS séparé où le
+`SsgContext.Provider` posé autour de `<Puck>` ne serait jamais vu).
 
 ### Lecture du dépôt : archive complète + cache local
 
-`content/` (pages, articles) et `templates/` (thème du site, voir ci-dessous) sont lus ensemble, en un seul aller-retour réseau par fournisseur plutôt qu'un appel par fichier :
+`content/` (pages, articles) est lu en un seul aller-retour réseau par fournisseur
+plutôt qu'un appel par fichier :
 - **Forgejo/Codeberg et GitLab** : un appel à l'endpoint d'archive (`/archive/{ref}.tar.gz`, `/repository/archive.tar.gz`), CORS ouvert vérifié en direct sur les deux (`access-control-allow-origin: *`), décompressé et parsé côté navigateur (`DecompressionStream` natif + petit parseur tar maison dans `tar-utils.js`, pas de dépendance zip).
-- **GitHub** : l'archive/tarball est bloquée pour un usage navigateur (`/tarball/{ref}` redirige vers `codeload.github.com`, qui ne renvoie `access-control-allow-origin` que pour `render.githubusercontent.com`, vérifié en direct). À la place : un `listTree` (déjà un seul appel) puis **une seule** requête GraphQL groupée (`api.github.com/graphql`, CORS ouvert vérifié) avec un alias par fichier — les fichiers binaires (polices, images du thème) retombent individuellement sur l'API blob REST, le type `Blob` de GraphQL GitHub n'exposant pas de contenu base64 (`text` vaut `null` pour un blob binaire).
+- **GitHub** : l'archive/tarball est bloquée pour un usage navigateur (`/tarball/{ref}` redirige vers `codeload.github.com`, qui ne renvoie `access-control-allow-origin` que pour `render.githubusercontent.com`, vérifié en direct). À la place : un `listTree` (déjà un seul appel) puis **une seule** requête GraphQL groupée (`api.github.com/graphql`, CORS ouvert vérifié) avec un alias par fichier.
 - Piège rencontré (et corrigé) sur l'endpoint archive Forgejo : il répond `Cache-Control: private, max-age=300` sur une URL qui ne varie pas avec le commit (`.../archive/main.tar.gz`) — sans `cache: "no-store"` explicite sur le `fetch`, le cache HTTP du navigateur pouvait reservir une archive périmée après deux publications rapprochées (repéré via la suite e2e, page fraîchement publiée absente de la liste juste après).
 
-Le résultat (`{ chemin: Uint8Array }` pour tout le dépôt) est mis en cache localement en **IndexedDB** (`repo-cache.js`) plutôt que retéléchargé à chaque écran : un sha HEAD de branche (appel léger, un par fournisseur) est comparé au sha mis en cache avant de décider de retélécharger ou non — `localStorage` a été écarté (quota ~5-10 Mo/origine, API synchrone bloquante, chaînes de caractères seulement, inadapté aux assets binaires du thème).
-
-### Thème copié dans chaque site
-
-Le thème complet (`themes/volks-typo/`) est copié dans le dépôt de chaque site à sa création (`createSite()` dans `app.js`, même écriture batch qu'une publication), plutôt que relu depuis les assets de l'app à chaque build — chaque site devient un vrai projet Zola autonome. Contrepartie assumée : les correctifs futurs du thème vendoré ne se propagent plus automatiquement aux sites déjà créés (pas de mécanisme de resynchronisation pour l'instant).
-
-Pour les sites créés avant cette fonctionnalité (ou n'ayant personnalisé qu'un seul gabarit) : `getSiteFiles()` (`site-builder.js`) fusionne toujours le thème vendoré de l'app *fichier par fichier* sous ce qui existe réellement dans le dépôt — jamais un tout-ou-rien — pour que lecture et build restent corrects même sur un dépôt partiellement aligné. L'écran "Réglages du site" propose une action explicite ("Installer le thème dans ce site") qui copie tout le thème d'un coup, purement pour rendre le dépôt autonome — jamais requis pour que le site fonctionne.
-
-L'onglet **Templates** (sidebar) liste tous les gabarits `.html` du thème (gabarits de page et includes partagés `macros/`/`partials/`), avec un éditeur de code ([CodeMirror](https://codemirror.net/), `editor-src/code-editor.js`) et la même preview live que l'éditeur de contenu — `buildPreviewSite()` (`site-builder.js`) accepte indifféremment un brouillon de page (`content/*.md`) ou de gabarit (`templates/*.html`), substitué dans les fichiers du dépôt avant le build Zola. Sauvegarder un gabarit écrit directement son chemin réel dans le dépôt (`templates/...`), sans notion d'override séparée.
+Le résultat (`{ chemin: Uint8Array }` pour tout le dépôt) est mis en cache localement en **IndexedDB** (`repo-cache.js`) plutôt que retéléchargé à chaque écran : un sha HEAD de branche (appel léger, un par fournisseur) est comparé au sha mis en cache avant de décider de retélécharger ou non — `localStorage` a été écarté (quota ~5-10 Mo/origine, API synchrone bloquante, chaînes de caractères seulement).
 
 ### Domaine personnalisé
 
-Réglage stocké dans un nouveau fichier **`site.toml`** à la racine de chaque dépôt de site (branche `main`) — première brique du futur "fichier structuré de config du site" évoqué dans "Architecture cœur/thèmes/plugins" plus bas. Jamais lu par Zola (ni `content/`, `templates/`, `static/`, `sass/`, ni `config.toml`), donc jamais publié sur la branche `pages` : reste un fichier source, comme `content/*.md`. Lu/écrit via `getCustomDomain()`/`setCustomDomain()` (`site-builder.js`), et propagé dans le `base_url` du `config.toml` généré à chaque publication (`rebuildAndPublishSite()`).
+Réglage stocké dans un nouveau fichier **`site.toml`** à la racine de chaque dépôt de site (branche `main`) — première brique du futur "fichier structuré de config du site" évoqué dans "Architecture cœur/thèmes/plugins" plus bas. Jamais lu par le renderer (ni `content/`, ni le reste du dépôt), donc jamais publié sur la branche `pages` : reste un fichier source, comme `content/*.md`. Lu/écrit via `getCustomDomain()`/`setCustomDomain()` (`site-builder.js`), et propagé dans le `baseUrl` passé au renderer à chaque publication (`rebuildAndPublishSite()`).
 
 **Sous-domaines uniquement** (ex. `www.exemple.com`) — pas de domaine racine/apex, pour éviter la variété de mécanismes A/AAAA/ALIAS/ANAME selon le registrar. Chaque fournisseur a un mécanisme d'activation différent (vérifié contre leurs docs officielles) :
 - **GitHub Pages** : un simple champ `cname` sur l'API Pages (`PUT /repos/{owner}/{repo}/pages`) — pas de fichier `CNAME` à committer.
@@ -190,16 +223,16 @@ Réglage stocké dans un nouveau fichier **`site.toml`** à la racine de chaque 
 
 ### Aperçu en direct
 
-Pendant l'édition (contenu ou gabarit), un rebuild Zola tourne en arrière-plan (débounce ~1,8s après la dernière frappe) sur le dépôt déjà publié + le brouillon en cours, non enregistré (`buildPreviewSite()` dans `site-builder.js`).
-Sa sortie (un site multi-pages avec de vrais liens relatifs entre pages/assets) est servie par un **service worker** (`sw.js`) qui intercepte les requêtes sous `/preview/<owner>/<repo>/...` et répond directement depuis une map en mémoire — pas de blob URL ni de `srcdoc` d'iframe, qui casseraient la navigation entre pages.
-`config.toml` reçoit un `base_url` différent pour ce build (`/preview/...` plutôt que l'URL réelle du site publié), sinon Zola génère nav/liens/assets en absolu vers un domaine de prod qui n'a pas encore ce contenu.
+Pendant l'édition d'une page, un rebuild tourne en arrière-plan (débounce ~1,8s après la dernière frappe) sur le dépôt déjà publié + le brouillon en cours, non enregistré (`buildPreviewSite()` dans `site-builder.js`).
+Sa sortie (un site multi-pages avec de vrais liens relatifs entre pages) est servie par un **service worker** (`sw.js`) qui intercepte les requêtes sous `/preview/<owner>/<repo>/...` et répond directement depuis une map en mémoire — pas de blob URL ni de `srcdoc` d'iframe, qui casseraient la navigation entre pages.
+Le renderer reçoit un `baseUrl` différent pour ce build (`/preview/...` plutôt que l'URL réelle du site publié), sinon les liens de nav seraient générés en absolu vers un domaine de prod qui n'a pas encore ce contenu.
 Rien n'est publié sur le fournisseur tant qu'on ne clique pas sur "Publier" — l'aperçu ne touche que la mémoire du navigateur.
 
 ### Inclusion des packages JS
 
 BlockNote (React + ProseMirror + Mantine) est trop imbriqué pour un `<script>`/CDN sans bundler (duplication de singletons ProseMirror).
-`zola-builder.js` importe aussi un package npm (`@bjorn3/browser_wasi_shim`), donc même traitement — pareil pour l'éditeur de code de l'onglet Templates (CodeMirror 6, `editor-src/code-editor.js`).
-`npm run build` (esbuild) produit trois bundles IIFE : `editor.bundle.js`/`.css`, `zola-builder.bundle.js` et `code-editor.bundle.js`.
+`ssg-src/renderer.jsx` (React + Puck) et l'éditeur de mise en page (`editor-src/puck-layout-editor.jsx`, React + `<Puck>`) ont besoin du même traitement.
+`npm run build` (esbuild) produit trois bundles IIFE : `editor.bundle.js`/`.css`, `ssg-builder.bundle.js` et `puck-layout-editor.bundle.js`/`.css` — le second reçoit un `Buffer` global injecté (`--inject:editor-src/buffer-shim.js`, package `buffer`) car `gray-matter` y fait référence sans condition, un global Node absent des navigateurs. Les trois bundles embarquent chacun leur propre copie de React (aucun module partagé entre bundles esbuild IIFE séparés) — voir "Éditeur de mise en page Puck" plus haut pour pourquoi ça impose de réimporter la palette de composants dans `puck-layout-editor.bundle.js` plutôt que de la réutiliser depuis `ssg-builder.bundle.js`.
 Il génère ensuite `index.html` depuis `index.template.html` (le fichier à éditer, `index.html` est gitignore).
 Chaque script/style local reçoit un `?v=<hash du commit>`, pour éviter le cache périmé après déploiement.
 Le reste de l'app : scripts classiques, sans build.
@@ -207,11 +240,11 @@ Le reste de l'app : scripts classiques, sans build.
 ### Architecture cœur/thèmes/plugins (à venir)
 
 Pour le futur système de plugins/thèmes (feuille de route, item 2), approche **hybride** retenue plutôt qu'un vrai split en deux outils.
-Le cœur (`app.js`, `api.js`, éditeur, orchestrateur de build) reste hébergé centralement sur stamperia.io, mis à jour pour tous les sites d'un coup.
-**La partie thème de ce pattern est réalisée** (voir "Thème copié dans chaque site" plus haut : chaque dépôt de site a sa propre copie du thème) ; les plugins restent à construire en étendant le même principe.
+Le cœur (`app.js`, `api.js`, éditeur, renderer) reste hébergé centralement sur stamperia.io, mis à jour pour tous les sites d'un coup.
+La partie thème de ce pattern reste à construire côté Puck : le mécanisme précédent ("chaque dépôt de site a sa propre copie du thème") a été retiré avec Zola — tous les sites partagent aujourd'hui le même jeu de gabarits par défaut (`ssg-src/default-templates.js`, voir "Génération du site dans le navigateur" plus haut), sans notion de thème/plugin par site pour l'instant.
 
-Pourquoi : updates cœur centralisées (vs vrai split où chaque site fige sa version à la création), repos de site plus légers, une seule surface de sécurité à auditer, réutilise un mécanisme déjà en place.
+Pourquoi l'approche hybride : updates cœur centralisées (vs vrai split où chaque site fige sa version à la création), repos de site plus légers, une seule surface de sécurité à auditer.
 Migrer plus tard vers un vrai split ("eject" = copier le cœur dans le repo une fois) resterait facile depuis l'hybride ; l'inverse serait coûteux une fois des sites divergés — d'où ce point de départ, à condition de traiter l'API cœur/plugin comme un contrat stable dès le début.
 
-Config du site (thème choisi, réglages plugins) : fichier structuré (JSON/TOML) dans le repo, pas SQLite — reste diff-friendly et cohérent avec l'approche actuelle (front matter + `config.toml` généré), évite les conflits de merge sur binaire que SQLite documente lui-même comme un mauvais fit pour git.
+Config du site (thème choisi, réglages plugins) : fichier structuré (JSON/TOML) dans le repo, pas SQLite — reste diff-friendly (front matter + gabarits Puck en JSON), évite les conflits de merge sur binaire que SQLite documente lui-même comme un mauvais fit pour git.
 

@@ -298,7 +298,12 @@ class GitLabApi {
   // Écrit plusieurs fichiers en un seul commit via l'API "Commits" de GitLab (`actions`) —
   // équivalent du endpoint batch "Modify multiple files" de Forgejo. Le chemin déjà présent
   // sur la branche (via listTree) distingue create/update, comme pour Forgejo.
-  async publishFiles(owner, repo, branch, files) {
+  //
+  // `replace` (par défaut false) : si vrai, tout fichier déjà présent sur la branche mais
+  // absent de `files` reçoit une action "delete" — voir le commentaire équivalent sur
+  // ForgejoApi.publishFiles (api.js) pour le pourquoi (branche `pages` entièrement
+  // régénérée à chaque publication, orphelins sinon après un changement de renderer).
+  async publishFiles(owner, repo, branch, files, { replace = false } = {}) {
     const tree = await this.listTree(owner, repo, branch);
     const existingPaths = new Set(tree.tree.filter((entry) => entry.type === "blob").map((entry) => entry.path));
 
@@ -308,6 +313,13 @@ class GitLabApi {
       content: bytesToBase64(bytes),
       encoding: "base64",
     }));
+
+    if (replace) {
+      const newPaths = new Set(Object.keys(files));
+      for (const path of existingPaths) {
+        if (!newPaths.has(path)) actions.push({ action: "delete", file_path: path });
+      }
+    }
 
     return this._request(`/projects/${this.projectId(owner, repo)}/repository/commits`, {
       method: "POST",

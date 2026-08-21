@@ -245,13 +245,27 @@ class GitHubApi {
   // de GitHub n'a pas d'endpoint batch — on compose le commit à la main via l'API Git Data
   // (créer un blob par fichier, un arbre, un commit, puis avancer la branche), l'équivalent
   // bas niveau de ce que fait `git commit` — mais en pur REST/JSON, donc utilisable depuis
-  // le navigateur (contrairement au protocole git smart-HTTP, voir README.md). `base_tree`
-  // reprend l'arbre existant de la branche pour ne pas perdre les fichiers non touchés par
-  // cette publication (mêmes fichiers que list/publishFile ignorait déjà auparavant).
-  async publishFiles(owner, repo, branch, files) {
-    const headSha = await this._headCommitSha(owner, repo, branch);
-    const baseCommit = await this._request(`/repos/${owner}/${repo}/git/commits/${headSha}`);
-
+  // le navigateur (contrairement au protocole git smart-HTTP, voir README.md).
+  //
+  // `replace` (par défaut false) : si vrai, l'arbre créé ne contient QUE `files` — aucun
+  // `base_tree`, donc tout fichier de la branche absent de `files` disparaît du nouveau
+  // commit. Utilisé pour la branche `pages`, dont le contenu est entièrement régénéré à
+  // chaque publication (rebuildAndPublishSite() dans site-builder.js) : sans ça (`base_tree`
+  // reprenant l'arbre existant, comme avant), changer de renderer (ex. abandon de Zola pour
+  // Puck, voir docs/plan-puck-ssg.md) laisse les anciens fichiers orphelins indéfiniment
+  // (constaté en usage réel : main.css, icônes, pages de pagination Zola encore présents
+  // après plusieurs publications avec le nouveau renderer, qui ne les produit plus). `false`
+  // reste le comportement par défaut pour `main` (createSite() n'écrit que deux fichiers de
+  // structure dans un nouveau dépôt, additif par nature — jamais de raison d'y supprimer quoi
+  // que ce soit, ex. un README généré par GitHub à la création du dépôt).
+  //
+  // Les blobs (adressés par contenu, indépendants de l'état de la branche) sont créés une
+  // seule fois ; tree/commit/avancement de ref sont retentés (jusqu'à 3 essais) sur un 422
+  // "Update is not a fast forward" — la branche a bougé entre la lecture de headSha et le
+  // PATCH de la ref (ex. deux publications qui se chevauchent). Rejouer avec un head frais
+  // est sûr pour `pages` (jamais une source de vérité) ; pour `main`, ce cas ne devrait pas
+  // se produire en usage normal (un seul appelant, à la création du dépôt).
+  async publishFiles(owner, repo, branch, files, { replace = false } = {}) {
     const treeEntries = await Promise.all(
       Object.entries(files).map(async ([path, bytes]) => {
         const blob = await this._request(`/repos/${owner}/${repo}/git/blobs`, {
@@ -262,20 +276,35 @@ class GitHubApi {
       })
     );
 
-    const tree = await this._request(`/repos/${owner}/${repo}/git/trees`, {
-      method: "POST",
-      body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree: treeEntries }),
-    });
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const headSha = await this._headCommitSha(owner, repo, branch);
 
-    const commit = await this._request(`/repos/${owner}/${repo}/git/commits`, {
-      method: "POST",
-      body: JSON.stringify({ tree: tree.sha, parents: [headSha], message: "Publication du site" }),
-    });
+      const treeBody = { tree: treeEntries };
+      if (!replace) {
+        const baseCommit = await this._request(`/repos/${owner}/${repo}/git/commits/${headSha}`);
+        treeBody.base_tree = baseCommit.tree.sha;
+      }
+      const tree = await this._request(`/repos/${owner}/${repo}/git/trees`, {
+        method: "POST",
+        body: JSON.stringify(treeBody),
+      });
 
-    return this._request(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
-      method: "PATCH",
-      body: JSON.stringify({ sha: commit.sha }),
-    });
+      const commit = await this._request(`/repos/${owner}/${repo}/git/commits`, {
+        method: "POST",
+        body: JSON.stringify({ tree: tree.sha, parents: [headSha], message: "Publication du site" }),
+      });
+
+      try {
+        return await this._request(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+          method: "PATCH",
+          body: JSON.stringify({ sha: commit.sha }),
+        });
+      } catch (err) {
+        if (err.status !== 422 || attempt === maxAttempts) throw err;
+        // Retente avec une tête fraîche plutôt que de remonter l'erreur.
+      }
+    }
   }
 
   async _headCommitSha(owner, repo, branch) {

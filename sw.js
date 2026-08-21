@@ -1,5 +1,5 @@
-// Sert l'aperçu en direct de l'éditeur : app.js poste ici la sortie d'un build Zola en
-// mémoire (voir buildPreviewSite() dans site-builder.js), et ce worker la ressert sous
+// Sert l'aperçu en direct de l'éditeur : app.js poste ici la sortie d'un build du
+// renderer Puck en mémoire (voir buildPreviewSite() dans site-builder.js), et ce worker la ressert sous
 // /preview/<owner>/<repo>/... avec de vraies URLs relatives (nav entre pages, CSS,
 // images...) — un iframe en srcdoc/blob URL ne le permettrait pas. Tout le reste (assets
 // de l'appli, API Codeberg cross-origin) passe au réseau sans interception.

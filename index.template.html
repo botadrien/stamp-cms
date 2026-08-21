@@ -155,6 +155,21 @@
     border-radius: 8px;
     background: #fff;
   }
+  /* Éditeur de mise en page Puck (voir openLayoutEditor() dans app.js) : plein
+     bleed, l'UI de Puck (@puckeditor/core) gère elle-même toute sa mise en page interne
+     (barre latérale de composants, panneau de champs, canvas) — pas de max-width/padding
+     hérité de la colonne centrée par défaut. */
+  main.layout-editor {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  main.layout-editor #layoutEditorMount {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
   button {
     background: var(--accent);
     color: white;
@@ -250,6 +265,7 @@
 </div>
 
 <link rel="stylesheet" href="editor.bundle.css" />
+<link rel="stylesheet" href="puck-layout-editor.bundle.css" />
 <script src="config.js"></script>
 <script src="pkce.js"></script>
 <script src="auth.js"></script>
@@ -258,8 +274,8 @@
 <script src="github-api.js"></script>
 <script src="gitlab-api.js"></script>
 <script src="editor.bundle.js"></script>
-<script src="zola-builder.bundle.js"></script>
-<script src="code-editor.bundle.js"></script>
+<script src="ssg-builder.bundle.js"></script>
+<script src="puck-layout-editor.bundle.js"></script>
 <script src="repo-cache.js"></script>
 <script src="dns-check.js"></script>
 <script src="site-builder.js"></script>
