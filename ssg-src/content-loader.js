@@ -16,7 +16,7 @@ const EXCERPT_LENGTH = 200;
 // Types de composants dont un prop contient du HTML richtext (voir rich-text.jsx) — sert
 // à reconstituer un excerpt en texte brut à partir du corps Puck de l'item, faute d'un
 // champ "description" dédié pas encore éditable depuis le CMS aujourd'hui.
-const RICHTEXT_FIELDS = { RichText: "body" };
+const RICHTEXT_FIELDS = { RichText: "body", Accordion: "body" };
 
 // Même règle que titleFromPath() dans site-builder.js : nom de fichier -> titre lisible,
 // utilisé quand root.props n'a pas de champ `title`.

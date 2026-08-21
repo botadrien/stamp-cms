@@ -17,6 +17,11 @@ import { Footer } from "./components/footer.jsx";
 import { Repeater } from "./components/repeater.jsx";
 import { ContentSlot } from "./components/content-slot.jsx";
 import { RichText } from "./components/rich-text.jsx";
+import { Callout } from "./components/callout.jsx";
+import { Quote } from "./components/quote.jsx";
+import { Divider } from "./components/divider.jsx";
+import { CodeBlock } from "./components/code-block.jsx";
+import { Accordion } from "./components/accordion.jsx";
 
 /** @type {import("@puckeditor/core").Config} */
 export const puckConfig = {
@@ -31,5 +36,10 @@ export const puckConfig = {
     Repeater,
     ContentSlot,
     RichText,
+    Callout,
+    Quote,
+    Divider,
+    CodeBlock,
+    Accordion,
   },
 };

@@ -161,18 +161,27 @@ Bundlé pour le navigateur via `editor-src/ssg-builder.js` -> `ssg-builder.bundl
 ### Édition de contenu
 
 Chaque page/article est édité avec Puck (`editor-src/puck-content-editor.jsx`, global
-`PuckContentEditor`) — une Config Puck restreinte à un seul composant, `RichText`
-(`ssg-src/components/rich-text.jsx`), qui expose le champ natif `type: "richtext"` de
-Puck (Tiptap embarqué). Restreinte volontairement : impossible d'y glisser un
+`PuckContentEditor`) — une Config Puck restreinte à une poignée de blocs de contenu
+(`ssg-src/components/`) : `RichText` (texte formaté, champ natif `type: "richtext"` de
+Puck/Tiptap embarqué), `Callout` (encart), `Quote` (citation), `Divider` (séparateur),
+`CodeBlock` (bloc de code) et `Accordion` (accordéon/volet repliable) — inspirés des blocs
+Notion/Gutenberg/gouvfr-docs, volontairement sans aucun qui nécessite un upload (pas
+d'image, pas de galerie). Restreinte volontairement : impossible d'y glisser un
 Nav/Hero/Footer, le contenu d'une page/d'un article reste un corps de texte — nav/hero/
 footer restent définis une fois par type de route (voir "Éditeur de mise en page Puck"
 plus bas). Titre (et date pour un article) s'éditent via le panneau de champs racine de
 Puck (`root.fields`), pas un champ séparé hors du canvas.
 
-Le champ richtext s'édite depuis le panneau de champs (sidebar droite), pas par clic
-direct dans le canvas : le canvas n'affiche qu'un aperçu en lecture seule du corps (limite
-du mode `iframe: { enabled: false }`, nécessaire pour que le contexte React `SsgContext`
-traverse jusqu'aux composants bindables — voir "Éditeur de mise en page Puck").
+Ces blocs sont aussi enregistrés dans la palette complète (`ssg-src/registry.jsx`) : le
+renderer de publication (`ssg-src/renderer.jsx`) s'en sert pour rendre le contenu fusionné
+dans `ContentSlot`, donc un type de bloc utilisé en contenu doit toujours y figurer aussi,
+sous peine de faire planter le rendu de toute page en contenant un.
+
+Le champ richtext (`RichText`, `Accordion`) s'édite depuis le panneau de champs (sidebar
+droite), pas par clic direct dans le canvas : le canvas n'affiche qu'un aperçu en lecture
+seule du corps (limite du mode `iframe: { enabled: false }`, nécessaire pour que le
+contexte React `SsgContext` traverse jusqu'aux composants bindables — voir "Éditeur de
+mise en page Puck").
 
 Au clic sur "Publier", le contenu (`JSON.stringify` de l'objet `Data` de l'article/la
 page) est commité sur `main` à `content/<slug>.puck.json` /

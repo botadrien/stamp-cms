@@ -5,10 +5,16 @@
 //
 // Contrairement à l'éditeur de mise en page (config complète, tous les composants de la
 // palette), cet éditeur utilise une Config Puck restreinte (voir contentPuckConfig
-// ci-dessous) : seul RichText y est enregistré, donc il est structurellement impossible
-// d'y glisser un Nav/Hero/Footer — le contenu d'un article/d'une page reste un corps de
-// texte, jamais sa propre mise en page (nav/hero/footer restent définis une fois par
-// type de route, voir templates/page.puck.json / templates/article.puck.json). Deux
+// ci-dessous) : seuls des blocs de contenu (RichText + Callout/Quote/Divider/CodeBlock/
+// Accordion, voir ssg-src/components/) y sont enregistrés, donc il est structurellement
+// impossible d'y glisser un Nav/Hero/Footer — le contenu d'un article/d'une page reste un
+// corps de texte, jamais sa propre mise en page (nav/hero/footer restent définis une fois
+// par type de route, voir templates/page.puck.json / templates/article.puck.json). Ces
+// blocs sont aussi enregistrés dans la palette complète (ssg-src/registry.jsx) : le
+// renderer de publication (ssg-src/renderer.jsx) s'appuie sur cette palette-là pour
+// rendre le contenu fusionné dans ContentSlot — un type de bloc absent de registry.jsx
+// planterait le rendu de toute page en contenant un, même si l'édition elle-même se fait
+// ici. Deux
 // variantes de champs racine : une page standalone n'a pas de date, un article en a une
 // (voir `kind` ci-dessous, "page" ou "post" — mêmes valeurs que celles déjà utilisées par
 // addPage()/listContentPages() dans app.js/site-builder.js).
@@ -30,6 +36,11 @@ import { createRoot } from "react-dom/client";
 import { Puck } from "@puckeditor/core";
 import "@puckeditor/core/puck.css";
 import { RichText } from "../ssg-src/components/rich-text.jsx";
+import { Callout } from "../ssg-src/components/callout.jsx";
+import { Quote } from "../ssg-src/components/quote.jsx";
+import { Divider } from "../ssg-src/components/divider.jsx";
+import { CodeBlock } from "../ssg-src/components/code-block.jsx";
+import { Accordion } from "../ssg-src/components/accordion.jsx";
 
 const ROOT_FIELDS_BASE = {
   title: { type: "text", label: "Titre" },
@@ -40,9 +51,11 @@ const ROOT_FIELDS_POST = {
   date: { type: "text", label: "Date (AAAA-MM-JJ)" },
 };
 
+const CONTENT_COMPONENTS = { RichText, Callout, Quote, Divider, CodeBlock, Accordion };
+
 function configFor(kind) {
   return {
-    components: { RichText },
+    components: CONTENT_COMPONENTS,
     root: { fields: kind === "post" ? ROOT_FIELDS_POST : ROOT_FIELDS_BASE },
   };
 }
