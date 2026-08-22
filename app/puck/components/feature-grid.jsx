@@ -8,7 +8,7 @@
  * https://demo.puckeditor.com/ (voir app/puck/design-tokens.js).
  */
 
-import { TOKENS } from "../design-tokens.js";
+import { TOKENS, cssVar } from "../design-tokens.js";
 
 const COLUMNS_OPTIONS = [2, 3, 4].map((value) => ({ label: `${value} colonnes`, value }));
 const SPACING = { sm: "2rem", md: "3rem", lg: "4.5rem" };
@@ -55,7 +55,7 @@ export const FeatureGrid = {
           backgroundColor: "var(--ssg-grid-bg)",
           color: "var(--ssg-grid-fg)",
           padding: `${paddingBlock} 1.5rem`,
-          fontFamily: TOKENS.fontFamily,
+          fontFamily: cssVar("fontFamily"),
         }}
       >
         {title ? (
@@ -88,10 +88,10 @@ export const FeatureGrid = {
                 flexDirection: "column",
                 gap: "1rem",
                 padding: "1.75rem",
-                borderRadius: TOKENS.radius,
-                border: `1px solid ${TOKENS.border}`,
-                boxShadow: TOKENS.cardShadow,
-                backgroundColor: TOKENS.surface,
+                borderRadius: cssVar("radius"),
+                border: `1px solid ${cssVar("border")}`,
+                boxShadow: cssVar("cardShadow"),
+                backgroundColor: cssVar("surface"),
               }}
             >
               {feature.icon ? (
@@ -103,8 +103,8 @@ export const FeatureGrid = {
                     width: "2.75rem",
                     height: "2.75rem",
                     borderRadius: "9999px",
-                    backgroundColor: TOKENS.accentSoft,
-                    color: TOKENS.accent,
+                    backgroundColor: cssVar("accentSoft"),
+                    color: cssVar("accent"),
                     fontSize: "1.25rem",
                   }}
                 >
@@ -112,10 +112,10 @@ export const FeatureGrid = {
                 </span>
               ) : null}
               {feature.title ? (
-                <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: 0, color: TOKENS.ink }}>{feature.title}</h3>
+                <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: 0, color: cssVar("ink") }}>{feature.title}</h3>
               ) : null}
               {feature.description ? (
-                <p style={{ fontSize: "0.9375rem", color: TOKENS.body, margin: 0, lineHeight: 1.6 }}>
+                <p style={{ fontSize: "0.9375rem", color: cssVar("body"), margin: 0, lineHeight: 1.6 }}>
                   {feature.description}
                 </p>
               ) : null}

@@ -23,13 +23,14 @@ Gratuit à 100% et toujours :
 - **Contenu structuré** : pages et articles de blog gérés séparément (triés par date pour le blog), écran "Réglages du site" pour le titre du blog.
 - **Suppression d'un site** : depuis "Réglages du site", zone dangereuse qui supprime le dépôt entier chez le fournisseur (irréversible, il faut retaper le nom du dépôt pour confirmer).
 - **Domaine personnalisé** : depuis "Réglages du site", sous-domaine uniquement pour l'instant (pas de domaine racine/apex) — instructions DNS et vérification en direct (CNAME, TXT le cas échéant) propres au fournisseur connecté, voir "Domaine personnalisé" plus bas pour le détail par fournisseur.
-- **Mise en page visuelle** : écran dédié (onglet "Mise en page") qui ouvre l'éditeur [Puck](https://puckeditor.com/) — glisser-déposer des blocs (nav, hero, grille de fonctionnalités, cartes/extraits d'article, footer, etc.), réglage de leurs props, aperçu en direct avec les vraies données du site. Un gabarit par type de route (accueil, page, article, index du blog) ; tant qu'il n'a pas été personnalisé, un site retombe sur le gabarit par défaut (`app/ssg/default-templates.js`), partagé par tous les sites — voir "Éditeur de mise en page Puck" plus bas pour l'architecture.
+- **Mise en page visuelle** : écran dédié (onglet "Mise en page") qui ouvre l'éditeur [Puck](https://puckeditor.com/) — glisser-déposer des blocs (nav, hero, grille de fonctionnalités, cartes/extraits d'article, footer, etc.), réglage de leurs props, aperçu en direct avec les vraies données du site. Un gabarit par type de route (accueil, page, article, index du blog) ; tant qu'il n'a pas été personnalisé, un site retombe sur le gabarit par défaut du thème du site (voir "Thèmes" plus bas) — voir "Éditeur de mise en page Puck" plus bas pour l'architecture.
+- **Thèmes natifs** : 3 thèmes au choix à la création d'un site (SaaS, blog dev, association), changeable ensuite depuis "Réglages du site" — chacun avec sa propre palette de couleurs/police et ses propres gabarits par défaut. Voir "Thèmes" plus bas.
 - **Topic `stamp-cms`** : posé automatiquement sur chaque dépôt créé (topic Forgejo/GitHub/GitLab, public et cherchable). La liste "Tes sites" ne montre que les dépôts portant ce topic (les autres dépôts du compte n'y apparaissent pas), et les sites restent trouvables par recherche de topic côté fournisseur. Les dépôts créés avant l'ajout de cette fonctionnalité n'ont pas le topic et n'apparaissent donc plus dans la liste (pas de migration automatique, cohérent avec le stade très précoce du projet).
 
 ## Feuille de route
 
-1. **Gestion des médias** (images, etc.) dans le dépôt Git.
-2. **Système de plugins/thèmes**, avec une API d'extension stable pensée dès maintenant pour éviter un refactor douloureux plus tard, en vue d'une marketplace de plugins et de thèmes.
+1. **Gestion des médias** (images, etc.) dans le dépôt Git — le composant `Image` (voir "Thèmes" plus bas) pointe vers une image déjà hébergée ailleurs, ce n'est pas un uploader.
+2. **Système de plugins**, avec une API d'extension stable pensée dès maintenant pour éviter un refactor douloureux plus tard, en vue d'une marketplace de plugins. Le volet thèmes de cet item est fait (3 thèmes natifs, voir "Thèmes" plus bas) ; la piste de thèmes tiers publiés dans des dépôts séparés reste à construire, voir "Architecture cœur/thèmes/plugins" plus bas.
 3. D'autres fournisseurs derrière la même couche d'abstraction — Codeberg, GitHub et GitLab y sont déjà branchés, voir "Forges git" plus bas.
 
 ## État de l'art / Inspirations
@@ -92,7 +93,7 @@ l'image GitLab CE est nettement plus lourde/lente à démarrer (plusieurs minute
 - Domaine personnalisé : traité pour les sous-domaines (voir "Domaine personnalisé" plus bas) — les domaines racine/apex restent un point ouvert (mécanisme A/AAAA/ALIAS différent par fournisseur, pas encore supporté)
 - Médias dans le dépôt Git : ça marche, mais avec des limites de taille (repos volumineux, fichiers individuels plafonnés) — à surveiller si beaucoup de photos/vidéos
 - Rester multi-fournisseur à terme sans complexifier le MVP
-- Palette de composants Puck encore minimale (hero, grille, CTA, carte/extrait d'article, nav, footer, corps de page) — pas de composant image, par exemple
+- Palette de composants Puck : blocs de mise en page (hero, grille, CTA, carte/extrait d'article, nav, footer, logos partenaires, témoignage, chiffres clés, réseaux sociaux, grille tarifaire) et blocs de contenu (corps de page, titre, encart, citation, séparateur, code, accordéon, espaceur, image, étiquettes) — `Image` reste une simple URL, pas d'upload (voir feuille de route, item 1)
 - Un seul gabarit par type de route (accueil/page/article/index du blog) : pas de gabarit dédié à UNE page en particulier (ex. une page d'accueil visuellement différente d'une autre page standalone), voir "Éditeur de mise en page Puck" plus bas
 
 ## Pistes explorées et mises de côté
@@ -210,6 +211,20 @@ canvas d'édition est rendu avec `iframe: { enabled: false }` (rendu inline dans
 document plutôt que dans un iframe isolé, qui serait un realm JS séparé où le
 `SsgContext.Provider` posé autour de `<Puck>` ne serait jamais vu).
 
+### Thèmes
+
+3 thèmes natifs (`app/themes/`) : `saas` (page vitrine produit, inspiré d'[Outseta](https://www.outseta.com/)), `devblog` (blog perso orienté développement, inspiré de [Josh W. Comeau](https://www.joshwcomeau.com/)) et `nonprofit` (association, mission + actualités, inspiré de [charity: water](https://www.charitywater.org/)). Choisi à la création d'un site, changeable ensuite depuis "Réglages du site".
+
+**Stockage** : la clé `theme` de `site.toml` (même fichier que le domaine personnalisé, voir "Domaine personnalisé" plus bas — `getThemeId()`/`setTheme()` dans `app/site/site-builder.js`). Absente -> le site retombe sur le gabarit par défaut d'origine (`app/ssg/default-templates.js`) et la palette `TOKENS` historique (`app/puck/design-tokens.js`) : aucune régression pour un site créé avant l'introduction des thèmes.
+
+**Ce qu'un thème regroupe** (`app/themes/<id>/{tokens,templates,index}.js`, voir `app/themes/types.js`) : une palette (`tokens` — mêmes clés que `TOKENS`), une police web optionnelle (`fontLinks`, injectée dans le `<head>` du site publié) et un jeu de gabarits par défaut par type de route (`home`/`page`/`article`/`blogIndex`, construits avec les mêmes prop-builders que `app/ssg/default-templates.js`, paramétrés par thème via `app/themes/shared/builders.js`). Un changement de thème (`setTheme()` + republication) ne touche jamais un gabarit déjà personnalisé via l'écran "Mise en page" — même repli fichier par fichier que `loadLayoutTemplates()` (voir section précédente), juste avec les défauts du thème actif comme fallback au lieu du jeu de gabarits d'origine.
+
+**Mécanisme de reskin** : chaque composant qui a une valeur de style codée en dur (donc sans champ Puck éditable en regard) l'exprime via `cssVar()` (`app/puck/design-tokens.js`), qui résout vers une custom property CSS (`var(--ssg-ink, ...)`) plutôt qu'une valeur littérale — `app/ssg/renderer.jsx` injecte le bloc `:root{--ssg-ink:...}` du thème actif dans le `<head>` de chaque page publiée, et l'éditeur de mise en page fait de même dans le canvas (scopé à `.layout-editor`, pas `:root`, pour ne jamais affecter le chrome de l'admin — voir `applyEditorThemeVars()` dans `app/app.js`). Les champs déjà éditables (`backgroundColor`/`textColor`/`accentColor`) restent de vraies chaînes hex, seedées différemment par thème dans `templates.js`.
+
+**Palette de composants** : les 7 blocs ajoutés pour les thèmes (`Image`, `Testimonial`, `LogoCloud`, `Stats`, `SocialLinks`, `PricingTable`, `TagList`, voir `app/puck/components/`) sont enregistrés dans la palette complète (`app/puck/registry.jsx`) comme tout le reste — aucune notion de palette par thème : le renderer doit pouvoir rendre le contenu de n'importe quel site quel que soit son thème.
+
+**Migration future vers des thèmes tiers** : une fois plusieurs thèmes natifs en place, le chemin vers des thèmes publiés dans des dépôts séparés reste celui déjà esquissé par le split cœur/thème hybride (voir "Architecture cœur/thèmes/plugins" plus bas) — non implémenté pour l'instant.
+
 ### Lecture du dépôt : archive complète + cache local
 
 `content/` (pages, articles) est lu en un seul aller-retour réseau par fournisseur
@@ -222,7 +237,7 @@ Le résultat (`{ chemin: Uint8Array }` pour tout le dépôt) est mis en cache lo
 
 ### Domaine personnalisé
 
-Réglage stocké dans un nouveau fichier **`site.toml`** à la racine de chaque dépôt de site (branche `main`) — première brique du futur "fichier structuré de config du site" évoqué dans "Architecture cœur/thèmes/plugins" plus bas. Jamais lu par le renderer (ni `content/`, ni le reste du dépôt), donc jamais publié sur la branche `pages` : reste un fichier source, comme `content/*.puck.json`. Lu/écrit via `getCustomDomain()`/`setCustomDomain()` (`app/site/site-builder.js`), et propagé dans le `baseUrl` passé au renderer à chaque publication (`rebuildAndPublishSite()`).
+Réglage stocké dans **`site.toml`** à la racine de chaque dépôt de site (branche `main`) — le "fichier structuré de config du site" évoqué dans "Architecture cœur/thèmes/plugins" plus bas, qui porte aussi la clé `theme` (voir "Thèmes" plus haut). Jamais lu par le renderer (ni `content/`, ni le reste du dépôt), donc jamais publié sur la branche `pages` : reste un fichier source, comme `content/*.puck.json`. Lu/écrit via `getCustomDomain()`/`setCustomDomain()` (`app/site/site-builder.js`, mêmes helpers génériques `getSiteTomlFields()`/`setSiteTomlField()` que `getThemeId()`/`setTheme()` — un enregistrement fusionne toujours avec les autres clés déjà présentes plutôt que d'écraser le fichier), et propagé dans le `baseUrl` passé au renderer à chaque publication (`rebuildAndPublishSite()`).
 
 **Sous-domaines uniquement** (ex. `www.exemple.com`) — pas de domaine racine/apex, pour éviter la variété de mécanismes A/AAAA/ALIAS/ANAME selon le registrar. Chaque fournisseur a un mécanisme d'activation différent (vérifié contre leurs docs officielles) :
 - **GitHub Pages** : un simple champ `cname` sur l'API Pages (`PUT /repos/{owner}/{repo}/pages`) — pas de fichier `CNAME` à committer.
@@ -242,12 +257,14 @@ Le reste de l'app : scripts classiques, sans build.
 
 ### Architecture cœur/thèmes/plugins (à venir)
 
-Pour le futur système de plugins/thèmes (feuille de route, item 2), approche **hybride** retenue plutôt qu'un vrai split en deux outils.
+Pour le futur système de plugins (feuille de route, item 2), approche **hybride** retenue plutôt qu'un vrai split en deux outils.
 Le cœur (`app/app.js`, `app/providers/api.js`, éditeur, renderer) reste hébergé centralement sur stamperia.io, mis à jour pour tous les sites d'un coup.
-La partie thème de ce pattern reste à construire côté Puck : le mécanisme précédent ("chaque dépôt de site a sa propre copie du thème") a été retiré avec Zola — tous les sites partagent aujourd'hui le même jeu de gabarits par défaut (`app/ssg/default-templates.js`, voir "Génération du site dans le navigateur" plus haut), sans notion de thème/plugin par site pour l'instant.
+Le volet thème de ce pattern est fait côté Puck (voir "Thèmes" plus haut) : 3 thèmes natifs, choisis via la clé `theme` de `site.toml`, chacun avec sa propre palette et ses propres gabarits par défaut — mais leur code vit encore dans ce dépôt (`app/themes/`), pas dans des dépôts séparés.
 
 Pourquoi l'approche hybride : updates cœur centralisées (vs vrai split où chaque site fige sa version à la création), repos de site plus légers, une seule surface de sécurité à auditer.
 Migrer plus tard vers un vrai split ("eject" = copier le cœur dans le repo une fois) resterait facile depuis l'hybride ; l'inverse serait coûteux une fois des sites divergés — d'où ce point de départ, à condition de traiter l'API cœur/plugin comme un contrat stable dès le début.
 
-Config du site (thème choisi, réglages plugins) : fichier structuré (JSON/TOML) dans le repo, pas SQLite — reste diff-friendly (front matter + gabarits Puck en JSON), évite les conflits de merge sur binaire que SQLite documente lui-même comme un mauvais fit pour git.
+Config du site (thème choisi, réglages plugins) : fichier structuré (JSON/TOML) dans le repo, pas SQLite — reste diff-friendly (front matter + gabarits Puck en JSON), évite les conflits de merge sur binaire que SQLite documente lui-même comme un mauvais fit pour git. C'est exactement `site.toml` aujourd'hui (voir "Domaine personnalisé" et "Thèmes" plus haut).
+
+**Thèmes tiers (non implémenté)** : une fois plusieurs thèmes natifs éprouvés, le chemin vers des thèmes publiés dans des dépôts séparés par d'autres développeur·euses reste celui esquissé ci-dessus — un paquet de thème autonome (tokens + gabarits par défaut Puck + un bundle de composants compilé/namespacé + un manifeste déclarant id/label/dépendances) chargé selon le même principe IIFE-puis-réimport que les bundles esbuild actuels (`app/ssg-builder.bundle.js`, `app/puck-layout-editor.bundle.js`, voir "Inclusion des packages JS" plus haut) plutôt qu'un vrai module ESM partagé — cohérent avec la contrainte "chaque bundle porte sa propre copie de React" documentée dans cette même section. Les 3 thèmes natifs suffisent pour l'instant à valider le mécanisme de reskin (voir "Thèmes" plus haut) avant d'ouvrir la porte à des thèmes hébergés hors du dépôt cœur.
 

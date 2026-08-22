@@ -43,6 +43,9 @@ import { Divider } from "../app/puck/components/divider.jsx";
 import { CodeBlock } from "../app/puck/components/code-block.jsx";
 import { Accordion } from "../app/puck/components/accordion.jsx";
 import { Space } from "../app/puck/components/space.jsx";
+import { Image } from "../app/puck/components/image.jsx";
+import { TagList } from "../app/puck/components/tag-list.jsx";
+import { componentIcons } from "../app/puck/component-icons.jsx";
 
 const ROOT_FIELDS_BASE = {
   title: { type: "text", label: "Titre" },
@@ -53,7 +56,7 @@ const ROOT_FIELDS_POST = {
   date: { type: "text", label: "Date (AAAA-MM-JJ)" },
 };
 
-const CONTENT_COMPONENTS = { RichText, Heading, Callout, Quote, Divider, CodeBlock, Accordion, Space };
+const CONTENT_COMPONENTS = { RichText, Heading, Callout, Quote, Divider, CodeBlock, Accordion, Space, Image, TagList };
 
 function configFor(kind) {
   return {
@@ -89,6 +92,15 @@ export function mount(elementId, { data, kind, onChange }) {
         onChange?.();
       }}
       viewports={[]}
+      overrides={{
+        // Voir le commentaire équivalent dans puck-layout-editor.jsx.
+        drawerItem: ({ name, children }) => (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {componentIcons[name]}
+            {children}
+          </div>
+        ),
+      }}
     />,
   );
 }

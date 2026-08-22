@@ -14,7 +14,7 @@ import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
 import { resolveHref } from "../../ssg/context.js";
-import { TOKENS } from "../design-tokens.js";
+import { TOKENS, cssVar } from "../design-tokens.js";
 
 const COLUMNS_OPTIONS = [1, 2, 3].map((value) => ({ label: `${value} colonne${value > 1 ? "s" : ""}`, value }));
 
@@ -47,7 +47,7 @@ export const ArticleCard = {
           display: "grid",
           gap: "1.5rem",
           gridTemplateColumns: `repeat(${columns || 3}, minmax(0, 1fr))`,
-          fontFamily: TOKENS.fontFamily,
+          fontFamily: cssVar("fontFamily"),
         }}
       >
         {items.map((item, index) => (
@@ -59,10 +59,10 @@ export const ArticleCard = {
               flexDirection: "column",
               gap: "0.625rem",
               padding: "1.5rem",
-              borderRadius: TOKENS.radius,
-              border: `1px solid ${TOKENS.border}`,
-              boxShadow: TOKENS.cardShadow,
-              backgroundColor: TOKENS.surface,
+              borderRadius: cssVar("radius"),
+              border: `1px solid ${cssVar("border")}`,
+              boxShadow: cssVar("cardShadow"),
+              backgroundColor: cssVar("surface"),
               color: "inherit",
               textDecoration: "none",
             }}
@@ -81,10 +81,10 @@ export const ArticleCard = {
               </span>
             ) : null}
             {item?.title ? (
-              <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: 0, color: TOKENS.ink }}>{item.title}</h3>
+              <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: 0, color: cssVar("ink") }}>{item.title}</h3>
             ) : null}
             {item?.excerpt ? (
-              <p style={{ fontSize: "0.9375rem", color: TOKENS.body, margin: 0, lineHeight: 1.55 }}>{item.excerpt}</p>
+              <p style={{ fontSize: "0.9375rem", color: cssVar("body"), margin: 0, lineHeight: 1.55 }}>{item.excerpt}</p>
             ) : null}
           </a>
         ))}

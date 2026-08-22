@@ -185,57 +185,100 @@ async function setBlogTitle(owner, repo, title) {
   });
 }
 
-// Domaine personnalisé du site (voir README, section "Domaine personnalisé") : stocké
-// dans un fichier dédié à la racine du dépôt plutôt que dans le titre de
-// content/_index.puck.json (pas de lien logique avec le titre du blog) — première brique du
-// futur "fichier structuré de config du site" évoqué dans README ("Architecture
-// cœur/thèmes/plugins"). Jamais lu par le renderer (ni content/, ni le reste du dépôt) :
-// reste un fichier source sur main, jamais publié sur la branche pages.
-function extractCustomDomain(toml) {
-  const match = toml.match(/^custom_domain\s*=\s*"(.*)"\s*$/m);
-  return match ? match[1].replace(/\\"/g, '"') : null;
+// Fichier structuré de config du site (voir README, "Architecture cœur/thèmes/plugins") :
+// une clé = une ligne `clef = "valeur"`, à la racine du dépôt. Jamais lu par le renderer
+// (ni content/, ni le reste du dépôt) : reste un fichier source sur main, jamais publié
+// sur la branche pages. `getSiteTomlFields`/`setSiteTomlField` lisent-fusionnent-écrivent
+// (pas juste "écrivent") : plusieurs réglages (domaine personnalisé, thème) partagent ce
+// même fichier, donc enregistrer l'un ne doit jamais effacer l'autre.
+function parseSiteToml(toml) {
+  const fields = {};
+  for (const match of toml.matchAll(/^(\w+)\s*=\s*"(.*)"\s*$/gm)) {
+    fields[match[1]] = match[2].replace(/\\"/g, '"');
+  }
+  return fields;
 }
 
-async function getCustomDomain(owner, repo) {
+function serializeSiteToml(fields) {
+  return Object.entries(fields)
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key} = "${escapeToml(value)}"\n`)
+    .join("");
+}
+
+async function getSiteTomlFields(owner, repo) {
   try {
     const file = await api.getFile(owner, repo, "site.toml", "main", { silent404: true });
-    return extractCustomDomain(decodeBase64Utf8(file.content));
+    return { fields: parseSiteToml(decodeBase64Utf8(file.content)), sha: file.sha };
   } catch (err) {
-    if (err.status === 404) return null;
+    if (err.status === 404) return { fields: {}, sha: null };
     throw err;
   }
 }
 
-async function setCustomDomain(owner, repo, domain) {
-  let sha = null;
-  try {
-    const existing = await api.getFile(owner, repo, "site.toml", "main", { silent404: true });
-    sha = existing.sha;
-  } catch (err) {
-    if (err.status !== 404) throw err;
-  }
-  // Rien à faire : pas de domaine à enregistrer, et aucun site.toml existant à vider (pas
-  // de pattern de suppression de fichier dans les clients API, voir README — écrire un
-  // fichier vide n'a d'intérêt que pour effacer un domaine déjà stocké).
-  if (!domain && !sha) return;
-  const toml = domain ? `custom_domain = "${escapeToml(domain)}"\n` : "";
-  await api.saveFile(owner, repo, "site.toml", toml, {
-    sha,
-    message: domain ? "Mise à jour du domaine personnalisé" : "Suppression du domaine personnalisé",
-  });
+async function setSiteTomlField(owner, repo, key, value, commitMessage) {
+  const { fields, sha } = await getSiteTomlFields(owner, repo);
+  // Rien à faire : rien à enregistrer pour cette clé, et aucun site.toml existant à
+  // modifier (pas de pattern de suppression de fichier dans les clients API, voir README —
+  // écrire un fichier vide n'a d'intérêt que pour effacer un dernier réglage déjà stocké).
+  if (!value && !sha) return;
+  const toml = serializeSiteToml({ ...fields, [key]: value });
+  await api.saveFile(owner, repo, "site.toml", toml, { sha, message: commitMessage });
 }
 
-// Un gabarit Puck par clé (voir LAYOUT_TEMPLATE_FILES) : celui enregistré dans le repo
-// via l'écran "Mise en page" (openLayoutEditor()/saveLayoutTemplate() dans app/app.js) s'il
-// existe, sinon le défaut (SsgBuilder.defaultTemplates) — même logique de repli que
-// getSiteFiles() avant lui pour le thème Zola (fusion fichier par fichier, jamais un
+// Domaine personnalisé du site (voir README, section "Domaine personnalisé").
+async function getCustomDomain(owner, repo) {
+  const { fields } = await getSiteTomlFields(owner, repo);
+  return fields.custom_domain ?? null;
+}
+
+async function setCustomDomain(owner, repo, domain) {
+  await setSiteTomlField(
+    owner,
+    repo,
+    "custom_domain",
+    domain,
+    domain ? "Mise à jour du domaine personnalisé" : "Suppression du domaine personnalisé",
+  );
+}
+
+// Thème du site (voir app/themes/) — identifiant de clé dans SsgBuilder.themes.
+async function getThemeId(owner, repo) {
+  const { fields } = await getSiteTomlFields(owner, repo);
+  return fields.theme ?? null;
+}
+
+async function setTheme(owner, repo, themeId) {
+  await setSiteTomlField(owner, repo, "theme", themeId, "Mise à jour du thème du site");
+}
+
+// Résout le Theme (objet complet, voir app/themes/types.js) depuis un site.toml déjà en
+// main (`repoFiles`, voir resolveBaseUrl ci-dessous pour le même principe côté domaine) —
+// `null` pour un site sans clé "theme" (créé avant l'introduction des thèmes, ou clé
+// invalide/inconnue) : ces sites continuent de retomber sur SsgBuilder.defaultTemplates et
+// la palette TOKENS d'origine, sans aucune régression (voir loadLayoutTemplates ci-dessous
+// et cssVar() dans app/puck/design-tokens.js).
+function resolveThemeFromRepoFiles(repoFiles) {
+  if (!repoFiles["site.toml"]) return null;
+  const themeId = parseSiteToml(new TextDecoder().decode(repoFiles["site.toml"])).theme;
+  return (themeId && SsgBuilder.themes[themeId]) || null;
+}
+
+// Un gabarit Puck par clé (voir LAYOUT_TEMPLATE_FILES) : celui enregistré dans le repo via
+// l'écran "Mise en page" (openLayoutEditor()/saveLayoutTemplate() dans app/app.js) s'il
+// existe, sinon le défaut du thème actif du site (SsgBuilder.themes[id].templates, voir
+// app/themes/) ou, à défaut de thème, SsgBuilder.defaultTemplates — même logique de repli
+// fichier par fichier que getSiteFiles() avant lui pour le thème Zola (jamais un
 // tout-ou-rien) : un site n'ayant personnalisé qu'UN SEUL gabarit garde les trois autres
-// par défaut.
+// par défaut, et un changement de thème (setTheme ci-dessus) ne touche donc jamais un
+// gabarit déjà personnalisé.
 function loadLayoutTemplates(repoFiles) {
+  const theme = resolveThemeFromRepoFiles(repoFiles);
+  const fallbackTemplates = theme ? theme.templates : SsgBuilder.defaultTemplates;
   const templates = {};
   for (const [key, path] of Object.entries(LAYOUT_TEMPLATE_FILES)) {
     const raw = repoFiles[path] ? new TextDecoder().decode(repoFiles[path]) : null;
-    templates[key] = raw ? JSON.parse(raw) : SsgBuilder.defaultTemplates[key];
+    templates[key] = raw ? JSON.parse(raw) : fallbackTemplates[key];
   }
   return templates;
 }
@@ -246,7 +289,7 @@ function loadLayoutTemplates(repoFiles) {
 // site.toml y est déjà présent, aucun aller-retour réseau supplémentaire.
 function resolveBaseUrl(owner, repo, repoFiles) {
   const customDomain = repoFiles["site.toml"]
-    ? extractCustomDomain(new TextDecoder().decode(repoFiles["site.toml"]))
+    ? parseSiteToml(new TextDecoder().decode(repoFiles["site.toml"])).custom_domain
     : null;
   return customDomain ? `https://${customDomain}/` : api.pagesUrl(owner, repo);
 }
@@ -272,6 +315,7 @@ async function buildSiteFiles(owner, repo, repoFiles, baseUrl) {
     title,
     baseUrl,
     templates: loadLayoutTemplates(repoFiles),
+    theme: resolveThemeFromRepoFiles(repoFiles),
   });
 }
 
@@ -339,7 +383,7 @@ async function buildLayoutEditorData(owner, repo, key) {
     ? extractTitle(contentFiles["content/_index.puck.json"], "content/_index.puck.json")
     : repo;
 
-  const contextOpts = { title, baseUrl, collections };
+  const contextOpts = { title, baseUrl, collections, theme: resolveThemeFromRepoFiles(repoFiles) };
   if (key === "page") contextOpts.page = collections.pages[0];
   if (key === "article") {
     contextOpts.page = collections.blog[0];

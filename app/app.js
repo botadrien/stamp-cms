@@ -37,6 +37,28 @@ function renderStatus(message, type = "info") {
 function leaveEditor() {
   PuckContentEditor.unmount();
   PuckLayoutEditor.unmount();
+  clearEditorThemeVars();
+}
+
+// Aperçu en direct du thème du site (voir app/themes/) dans le canvas de l'éditeur de
+// mise en page — le canvas est rendu inline dans le document admin (pas d'iframe, voir
+// puck-layout-editor.jsx), donc les custom properties du thème sont scopées à
+// .layout-editor/.content-editor plutôt qu'à :root, pour ne jamais affecter le chrome de
+// l'admin lui-même (qui a déjà ses propres variables --accent/--panel/etc., voir
+// index.template.html). Même mécanisme que renderPuckPage() (app/ssg/renderer.jsx), qui
+// injecte le même bloc de variables dans le site publié.
+function applyEditorThemeVars(theme) {
+  clearEditorThemeVars();
+  if (!theme) return;
+  const t = theme.tokens;
+  const style = document.createElement("style");
+  style.id = "ssg-theme-vars";
+  style.textContent = `.layout-editor, .content-editor { --ssg-ink:${t.ink}; --ssg-body:${t.body}; --ssg-muted:${t.muted}; --ssg-accent:${t.accent}; --ssg-accent-soft:${t.accentSoft}; --ssg-border:${t.border}; --ssg-surface:${t.surface}; --ssg-surface-alt:${t.surfaceAlt}; --ssg-radius:${t.radius}; --ssg-radius-sm:${t.radiusSm}; --ssg-font-family:${t.fontFamily}; --ssg-card-shadow:${t.cardShadow}; }`;
+  document.head.appendChild(style);
+}
+
+function clearEditorThemeVars() {
+  document.getElementById("ssg-theme-vars")?.remove();
 }
 
 function renderLogin(extraMessage = "") {
@@ -302,10 +324,41 @@ async function renderDashboard() {
       <h2>Créer un site</h2>
       <label for="newSiteName">Nom du site</label>
       <input id="newSiteName" placeholder="mon-site" />
+      <label>Thème</label>
+      ${siteThemePickerHtml("newSiteTheme", SsgBuilder.DEFAULT_THEME_ID)}
       <button onclick="createSite()">Créer</button>
       <div id="createSiteStatus"></div>
     </div>
   `;
+}
+
+// Sélecteur de thème (cartes radio) réutilisé à la création d'un site et dans Réglages du
+// site — voir SsgBuilder.themeList (app/themes/index.js). `name` distingue les deux
+// formulaires (deux sélecteurs peuvent coexister dans des écrans différents, jamais dans
+// le même).
+function siteThemePickerHtml(name, selectedId) {
+  return `
+    <div class="theme-picker" onchange="selectThemeCard(event)">
+      ${SsgBuilder.themeList
+        .map(
+          (theme) => `
+        <label class="theme-picker-card ${theme.id === selectedId ? "selected" : ""}">
+          <input type="radio" name="${name}" value="${theme.id}" ${theme.id === selectedId ? "checked" : ""} />
+          <strong>${theme.label}</strong>
+          <span>${theme.description}</span>
+        </label>`
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+// Retour visuel immédiat sur le sélecteur de thème (siteThemePickerHtml ci-dessus) —
+// simple bascule de classe, pas de re-rendu de l'écran entier.
+function selectThemeCard(event) {
+  event.currentTarget.querySelectorAll(".theme-picker-card").forEach((card) => {
+    card.classList.toggle("selected", card.querySelector("input").checked);
+  });
 }
 
 async function createSite() {
@@ -318,6 +371,9 @@ async function createSite() {
     return;
   }
 
+  const themeInput = document.querySelector('input[name="newSiteTheme"]:checked');
+  const themeId = themeInput ? themeInput.value : SsgBuilder.DEFAULT_THEME_ID;
+
   statusEl.innerHTML = renderStatus("Création du site…", "info");
   try {
     const repo = await api.createRepo(name);
@@ -329,6 +385,7 @@ async function createSite() {
     await api.publishFiles(owner, repo.name, "main", {
       "content/_index.puck.json": encoder.encode(buildIndexStub(repo.name)),
       "content/blog/_index.puck.json": encoder.encode(buildBlogIndexStub()),
+      "site.toml": encoder.encode(`theme = "${themeId}"\n`),
     });
 
     statusEl.innerHTML = renderStatus("Génération du site…", "info");
@@ -486,6 +543,7 @@ async function openLayoutEditor(owner, name, key) {
 
   appEl.classList.add("layout-editor");
   appEl.innerHTML = `<div id="layoutEditorStatus"></div><div id="layoutEditorMount"></div>`;
+  applyEditorThemeVars(context.site.theme);
 
   PuckLayoutEditor.mount("layoutEditorMount", {
     data,
@@ -523,6 +581,20 @@ async function renderSiteSettings(owner, name) {
         <input id="blogTitle" />
         <button onclick="saveBlogTitle()">Enregistrer</button>
         <div id="settingsStatus"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Thème</h2>
+      <p style="color:var(--muted); font-size:14px; line-height:1.6;">
+        Change la palette de couleurs et la typographie du site. Les gabarits de mise en
+        page déjà personnalisés (écran "Mise en page") ne sont jamais modifiés par ce
+        changement — seuls les gabarits encore par défaut adoptent le nouveau thème.
+      </p>
+      <div id="siteThemeLoadStatus">${renderStatus("Chargement…", "info")}</div>
+      <div id="siteThemeForm" style="display:none;">
+        ${siteThemePickerHtml("siteTheme", SsgBuilder.DEFAULT_THEME_ID)}
+        <button onclick="saveSiteTheme()">Enregistrer et republier</button>
+        <div id="siteThemeStatus"></div>
       </div>
     </div>
     <div class="card">
@@ -579,6 +651,38 @@ async function renderSiteSettings(owner, name) {
     await renderDnsInstructions(owner, name, domain);
   } catch (err) {
     document.getElementById("customDomainStatus").innerHTML = renderStatus(err.message, "error");
+  }
+
+  try {
+    const themeId = (await getThemeId(owner, name)) || SsgBuilder.DEFAULT_THEME_ID;
+    document.getElementById("siteThemeForm").innerHTML = `
+      ${siteThemePickerHtml("siteTheme", themeId)}
+      <button onclick="saveSiteTheme()">Enregistrer et republier</button>
+      <div id="siteThemeStatus"></div>
+    `;
+    document.getElementById("siteThemeLoadStatus").innerHTML = "";
+    document.getElementById("siteThemeForm").style.display = "";
+  } catch (err) {
+    document.getElementById("siteThemeLoadStatus").innerHTML = renderStatus(err.message, "error");
+  }
+}
+
+async function saveSiteTheme() {
+  const themeInput = document.querySelector('input[name="siteTheme"]:checked');
+  const statusEl = document.getElementById("siteThemeStatus");
+  if (!themeInput) {
+    statusEl.innerHTML = renderStatus("Choisis un thème.", "error");
+    return;
+  }
+  statusEl.innerHTML = renderStatus("Publication…", "info");
+  try {
+    await setTheme(currentRepo.owner, currentRepo.name, themeInput.value);
+    const { warning } = await rebuildAndPublishSite(currentRepo.owner, currentRepo.name);
+    statusEl.innerHTML = warning
+      ? renderStatus(warning, "error")
+      : renderStatus(`Publié avec succès sur ${currentProvider.label} ✓`, "success");
+  } catch (err) {
+    statusEl.innerHTML = renderStatus(err.message, "error");
   }
 }
 

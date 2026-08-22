@@ -8,7 +8,7 @@
  * backgroundColor/textColor.
  */
 
-import { TOKENS, solidButtonStyle } from "../design-tokens.js";
+import { TOKENS, solidButtonStyle, cssVar } from "../design-tokens.js";
 
 const ALIGN_OPTIONS = [
   { label: "Aligné à gauche", value: "left" },
@@ -54,7 +54,7 @@ export const Hero = {
           color: "var(--ssg-hero-fg)",
           padding: `${paddingBlock} 1.5rem`,
           textAlign: centered ? "center" : "left",
-          fontFamily: TOKENS.fontFamily,
+          fontFamily: cssVar("fontFamily"),
         }}
       >
         <div style={{ maxWidth: "48rem", margin: centered ? "0 auto" : "0" }}>
@@ -65,7 +65,7 @@ export const Hero = {
                 fontWeight: 700,
                 letterSpacing: "0.06em",
                 textTransform: "uppercase",
-                color: TOKENS.accent,
+                color: cssVar("accent"),
                 margin: "0 0 0.75rem",
               }}
             >
@@ -99,7 +99,7 @@ export const Hero = {
             </p>
           ) : null}
           {ctaLabel && ctaUrl ? (
-            <a href={ctaUrl} style={solidButtonStyle(TOKENS.accent, "#ffffff")}>
+            <a href={ctaUrl} style={solidButtonStyle(cssVar("accent"), "#ffffff")}>
               {ctaLabel}
             </a>
           ) : null}

@@ -13,7 +13,7 @@
  * (editor-src/puck-content-editor.jsx), voir callout.jsx pour l'explication.
  */
 
-import { TOKENS } from "../design-tokens.js";
+import { cssVar } from "../design-tokens.js";
 
 const BOOL_OPTIONS = [
   { label: "Oui", value: true },
@@ -38,12 +38,12 @@ export const Accordion = {
       style={{
         margin: "1.5rem 0",
         padding: "1rem 1.25rem",
-        border: `1px solid ${TOKENS.border}`,
-        borderRadius: TOKENS.radiusSm,
-        fontFamily: TOKENS.fontFamily,
+        border: `1px solid ${cssVar("border")}`,
+        borderRadius: cssVar("radiusSm"),
+        fontFamily: cssVar("fontFamily"),
       }}
     >
-      <summary style={{ cursor: "pointer", fontWeight: 700, color: TOKENS.ink, fontSize: "1.0625rem" }}>
+      <summary style={{ cursor: "pointer", fontWeight: 700, color: cssVar("ink"), fontSize: "1.0625rem" }}>
         {summary}
       </summary>
       {body ? (

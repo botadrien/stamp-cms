@@ -6,7 +6,7 @@
  * contenu (editor-src/puck-content-editor.jsx), voir callout.jsx pour l'explication.
  */
 
-import { TOKENS } from "../design-tokens.js";
+import { cssVar } from "../design-tokens.js";
 
 const SPACING = { sm: "1.5rem", md: "2.5rem", lg: "4rem" };
 const SPACING_OPTIONS = Object.keys(SPACING).map((value) => ({ label: value, value }));
@@ -21,6 +21,6 @@ export const Divider = {
   },
   render: ({ spacing }) => {
     const margin = SPACING[spacing] ?? SPACING.md;
-    return <hr style={{ border: "none", borderTop: `1px solid ${TOKENS.border}`, margin: `${margin} 0` }} />;
+    return <hr style={{ border: "none", borderTop: `1px solid ${cssVar("border")}`, margin: `${margin} 0` }} />;
   },
 };

@@ -9,7 +9,7 @@
  * voir callout.jsx pour l'explication.
  */
 
-import { TOKENS } from "../design-tokens.js";
+import { cssVar } from "../design-tokens.js";
 
 const LEVELS = {
   h2: { tag: "h2", fontSize: "1.5rem", margin: "1.75rem 0 0.75rem" },
@@ -49,8 +49,8 @@ export const Heading = {
           fontSize,
           fontWeight: 700,
           letterSpacing: "-0.01em",
-          color: TOKENS.ink,
-          fontFamily: TOKENS.fontFamily,
+          color: cssVar("ink"),
+          fontFamily: cssVar("fontFamily"),
           margin,
           textAlign: align === "center" ? "center" : "left",
         }}

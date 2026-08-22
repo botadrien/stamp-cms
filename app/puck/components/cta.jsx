@@ -8,7 +8,7 @@
  * backgroundColor/textColor.
  */
 
-import { TOKENS, solidButtonStyle } from "../design-tokens.js";
+import { TOKENS, solidButtonStyle, cssVar } from "../design-tokens.js";
 
 const SPACING = { sm: "2rem", md: "3.5rem", lg: "5rem" };
 const SPACING_OPTIONS = Object.keys(SPACING).map((value) => ({ label: value, value }));
@@ -36,14 +36,14 @@ export const Cta = {
   render: ({ title, text, buttonLabel, buttonUrl, spacing, backgroundColor, textColor }) => {
     const paddingBlock = SPACING[spacing] ?? SPACING.md;
     return (
-      <section style={{ padding: `${paddingBlock} 1.5rem`, fontFamily: TOKENS.fontFamily }}>
+      <section style={{ padding: `${paddingBlock} 1.5rem`, fontFamily: cssVar("fontFamily") }}>
         <div
           style={{
             "--ssg-cta-bg": backgroundColor || TOKENS.accent,
             "--ssg-cta-fg": textColor || "#ffffff",
             backgroundColor: "var(--ssg-cta-bg)",
             color: "var(--ssg-cta-fg)",
-            borderRadius: TOKENS.radius,
+            borderRadius: cssVar("radius"),
             padding: "3rem 2rem",
             textAlign: "center",
             maxWidth: "56rem",

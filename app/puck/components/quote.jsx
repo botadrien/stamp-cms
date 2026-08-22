@@ -6,7 +6,7 @@
  * (editor-src/puck-content-editor.jsx), voir callout.jsx pour l'explication.
  */
 
-import { TOKENS } from "../design-tokens.js";
+import { cssVar } from "../design-tokens.js";
 
 export const Quote = {
   label: "Citation",
@@ -27,8 +27,8 @@ export const Quote = {
         style={{
           margin: "1.5rem 0",
           padding: "0.25rem 0 0.25rem 1.25rem",
-          borderLeft: `3px solid ${TOKENS.accent}`,
-          fontFamily: TOKENS.fontFamily,
+          borderLeft: `3px solid ${cssVar("accent")}`,
+          fontFamily: cssVar("fontFamily"),
         }}
       >
         <p
@@ -36,15 +36,15 @@ export const Quote = {
             margin: 0,
             fontSize: "1.1875rem",
             fontStyle: "italic",
-            color: TOKENS.ink,
+            color: cssVar("ink"),
             lineHeight: 1.55,
           }}
         >
           {quote}
         </p>
         {author || role ? (
-          <footer style={{ marginTop: "0.75rem", fontSize: "0.875rem", color: TOKENS.muted }}>
-            {author ? <span style={{ fontWeight: 700, color: TOKENS.body }}>{author}</span> : null}
+          <footer style={{ marginTop: "0.75rem", fontSize: "0.875rem", color: cssVar("muted") }}>
+            {author ? <span style={{ fontWeight: 700, color: cssVar("body") }}>{author}</span> : null}
             {author && role ? " — " : null}
             {role}
           </footer>

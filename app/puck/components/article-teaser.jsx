@@ -10,7 +10,7 @@ import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
 import { resolveHref } from "../../ssg/context.js";
-import { TOKENS } from "../design-tokens.js";
+import { TOKENS, cssVar } from "../design-tokens.js";
 
 const ITEM_FIELD = (label, path) => bindingField({ label, paths: [path], allowCollection: false });
 
@@ -43,13 +43,13 @@ export const ArticleTeaser = {
           padding: "1.5rem",
           maxWidth: "48rem",
           margin: "0 auto 1.25rem",
-          borderRadius: TOKENS.radius,
-          border: `1px solid ${TOKENS.border}`,
-          boxShadow: TOKENS.cardShadow,
-          backgroundColor: TOKENS.surface,
+          borderRadius: cssVar("radius"),
+          border: `1px solid ${cssVar("border")}`,
+          boxShadow: cssVar("cardShadow"),
+          backgroundColor: cssVar("surface"),
           color: "inherit",
           textDecoration: "none",
-          fontFamily: TOKENS.fontFamily,
+          fontFamily: cssVar("fontFamily"),
         }}
       >
         {resolved.date ? (
@@ -66,10 +66,10 @@ export const ArticleTeaser = {
           </span>
         ) : null}
         {resolved.title ? (
-          <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: 0, color: TOKENS.ink }}>{resolved.title}</h3>
+          <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: 0, color: cssVar("ink") }}>{resolved.title}</h3>
         ) : null}
         {resolved.excerpt ? (
-          <p style={{ fontSize: "0.9375rem", color: TOKENS.body, margin: 0, lineHeight: 1.55 }}>{resolved.excerpt}</p>
+          <p style={{ fontSize: "0.9375rem", color: cssVar("body"), margin: 0, lineHeight: 1.55 }}>{resolved.excerpt}</p>
         ) : null}
       </a>
     );

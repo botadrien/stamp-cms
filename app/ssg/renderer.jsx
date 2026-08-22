@@ -53,6 +53,30 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
+// Liens de polices web du thème actif (voir app/themes/), ex. Google Fonts — absent pour
+// un site sans thème (legacy), voir buildThemeHeadHtml() ci-dessous.
+function themeFontLinksHtml(theme) {
+  if (!theme?.fontLinks?.length) return "";
+  return theme.fontLinks
+    .map((font) => {
+      const preconnect = font.preconnect
+        ? `<link rel="preconnect" href="${escapeHtml(new URL(font.href).origin)}" crossorigin>\n`
+        : "";
+      return `${preconnect}<link rel="stylesheet" href="${escapeHtml(font.href)}">`;
+    })
+    .join("\n");
+}
+
+// Bloc `:root{--ssg-x:...}` des tokens du thème actif — chaque composant de la palette lit
+// ses valeurs codées en dur via cssVar() (app/puck/design-tokens.js), qui résout vers ces
+// custom properties si présentes, sinon vers la valeur littérale de TOKENS (site sans
+// thème : sortie strictement identique à avant l'introduction des thèmes).
+function themeStyleHtml(theme) {
+  if (!theme) return "";
+  const t = theme.tokens;
+  return `<style>:root{--ssg-ink:${t.ink};--ssg-body:${t.body};--ssg-muted:${t.muted};--ssg-accent:${t.accent};--ssg-accent-soft:${t.accentSoft};--ssg-border:${t.border};--ssg-surface:${t.surface};--ssg-surface-alt:${t.surfaceAlt};--ssg-radius:${t.radius};--ssg-radius-sm:${t.radiusSm};--ssg-font-family:${t.fontFamily};--ssg-card-shadow:${t.cardShadow};}</style>`;
+}
+
 // Rend un gabarit Puck (Data Puck : { root, content }) pour un Context donné en un
 // document HTML complet. `<SsgContext.Provider>` rend le Context disponible à tout
 // composant bindable de l'arbre, sans passer par le hook `resolveData` de Puck (voir
@@ -63,6 +87,8 @@ function renderPuckPage(puckData, context) {
       <Render config={puckConfig} data={puckData} />
     </SsgContext.Provider>,
   );
+  const theme = context.site.theme;
+  const themeHead = theme ? `${themeFontLinksHtml(theme)}\n${themeStyleHtml(theme)}\n` : "";
   return `<!doctype html>
 <html lang="fr">
 <head>
@@ -70,7 +96,7 @@ function renderPuckPage(puckData, context) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(pageTitle(context))}</title>
 <link rel="alternate" type="application/rss+xml" title="${escapeHtml(context.site.title)}" href="${escapeHtml(resolveHref(context, "/rss.xml"))}">
-</head>
+${themeHead}</head>
 <body>
 ${bodyHtml}
 </body>
@@ -87,27 +113,30 @@ ${bodyHtml}
  * @param {string} opts.title
  * @param {string} opts.baseUrl
  * @param {{home: Object, page: Object, blogIndex: Object, article: Object}} opts.templates - un gabarit Puck par type de route
+ * @param {import("../themes/types.js").Theme} [opts.theme] - thème actif du site (voir
+ *   resolveThemeFromRepoFiles() dans app/site/site-builder.js), absent pour un site sans
+ *   thème (legacy)
  * @returns {Promise<{ files: Object.<string, Uint8Array> }>}
  */
-export async function buildSite({ files, title, baseUrl, templates }) {
+export async function buildSite({ files, title, baseUrl, templates, theme }) {
   const collections = await loadCollections(files);
   /** @type {Object.<string, string>} */
   const output = {};
 
-  const rootContext = buildContext({ title, baseUrl, collections });
+  const rootContext = buildContext({ title, baseUrl, collections, theme });
   output[urlToOutputPath("/")] = renderPuckPage(templates.home, rootContext);
 
   for (const page of collections.pages) {
-    const context = buildContext({ title, baseUrl, collections, page });
+    const context = buildContext({ title, baseUrl, collections, page, theme });
     const merged = mergeItemContentIntoTemplate(templates.page, page);
     output[urlToOutputPath(page.url)] = renderPuckPage(merged, context);
   }
 
-  const blogIndexContext = buildContext({ title, baseUrl, collections, section: BLOG_SECTION });
+  const blogIndexContext = buildContext({ title, baseUrl, collections, section: BLOG_SECTION, theme });
   output[urlToOutputPath(BLOG_SECTION.url)] = renderPuckPage(templates.blogIndex, blogIndexContext);
 
   for (const article of collections.blog) {
-    const context = buildContext({ title, baseUrl, collections, page: article, section: BLOG_SECTION });
+    const context = buildContext({ title, baseUrl, collections, page: article, section: BLOG_SECTION, theme });
     const merged = mergeItemContentIntoTemplate(templates.article, article);
     output[urlToOutputPath(article.url)] = renderPuckPage(merged, context);
   }

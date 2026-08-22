@@ -194,6 +194,21 @@
   }
   .repo-item:last-child { border-bottom: none; }
   .repo-item span { color: var(--muted); font-size: 13px; }
+  .theme-picker { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .theme-picker-card {
+    flex: 1 1 160px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    cursor: pointer;
+    margin-bottom: 0;
+  }
+  .theme-picker-card input { width: auto; margin: 0 0 4px; }
+  .theme-picker-card.selected { border-color: var(--accent); }
+  .theme-picker-card span { color: var(--muted); font-size: 13px; }
   label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
   input, textarea {
     width: 100%;

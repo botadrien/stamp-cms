@@ -9,7 +9,7 @@
  * voir callout.jsx pour l'explication.
  */
 
-import { TOKENS } from "../design-tokens.js";
+import { cssVar } from "../design-tokens.js";
 
 export const CodeBlock = {
   label: "Bloc de code",
@@ -28,9 +28,9 @@ export const CodeBlock = {
         <pre
           style={{
             margin: 0,
-            backgroundColor: TOKENS.ink,
+            backgroundColor: cssVar("ink"),
             color: "#f4f4f5",
-            borderRadius: TOKENS.radiusSm,
+            borderRadius: cssVar("radiusSm"),
             padding: "1.25rem",
             overflowX: "auto",
           }}
@@ -52,7 +52,7 @@ export const CodeBlock = {
               top: "0.625rem",
               right: "0.875rem",
               fontSize: "0.75rem",
-              fontFamily: TOKENS.fontFamily,
+              fontFamily: cssVar("fontFamily"),
               color: "#a1a1aa",
               textTransform: "uppercase",
               letterSpacing: "0.04em",

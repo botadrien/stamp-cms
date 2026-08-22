@@ -15,5 +15,6 @@ import { buildSite } from "../app/ssg/renderer.jsx";
 import { defaultTemplates } from "../app/ssg/default-templates.js";
 import { loadCollections } from "../app/ssg/content-loader.js";
 import { buildContext } from "../app/ssg/context.js";
+import { themes, themeList, DEFAULT_THEME_ID } from "../app/themes/index.js";
 
-export { buildSite, defaultTemplates, loadCollections, buildContext };
+export { buildSite, defaultTemplates, loadCollections, buildContext, themes, themeList, DEFAULT_THEME_ID };

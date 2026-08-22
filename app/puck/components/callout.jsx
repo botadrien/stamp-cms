@@ -8,14 +8,14 @@
  * d'une page/d'un article, pas de sa mise en page (nav/hero/footer).
  */
 
-import { TOKENS } from "../design-tokens.js";
+import { cssVar } from "../design-tokens.js";
 
 // Palette locale (pas dans design-tokens.js, comme SPACING dans hero.jsx/cta.jsx) :
 // TOKENS n'a qu'un seul accent (bleu) — un encart a besoin de plusieurs tons distincts
 // (succès/avertissement/danger) en plus de l'info, alignés sur l'accent existant pour
 // le ton "info".
 const TONES = {
-  info: { bg: "#eff6ff", border: "#bfdbfe", fg: TOKENS.accent },
+  info: { bg: "#eff6ff", border: "#bfdbfe", fg: cssVar("accent") },
   success: { bg: "#f0fdf4", border: "#bbf7d0", fg: "#15803d" },
   warning: { bg: "#fffbeb", border: "#fde68a", fg: "#b45309" },
   danger: { bg: "#fef2f2", border: "#fecaca", fg: "#b91c1c" },
@@ -51,10 +51,10 @@ export const Callout = {
           gap: "0.875rem",
           margin: "1.5rem 0",
           padding: "1.125rem 1.25rem",
-          borderRadius: TOKENS.radiusSm,
+          borderRadius: cssVar("radiusSm"),
           border: `1px solid ${palette.border}`,
           backgroundColor: palette.bg,
-          fontFamily: TOKENS.fontFamily,
+          fontFamily: cssVar("fontFamily"),
         }}
       >
         {icon ? (
@@ -67,7 +67,7 @@ export const Callout = {
             <p style={{ margin: 0, fontWeight: 700, color: palette.fg, fontSize: "1rem" }}>{title}</p>
           ) : null}
           {text ? (
-            <p style={{ margin: 0, color: TOKENS.body, fontSize: "0.9375rem", lineHeight: 1.6 }}>{text}</p>
+            <p style={{ margin: 0, color: cssVar("body"), fontSize: "0.9375rem", lineHeight: 1.6 }}>{text}</p>
           ) : null}
         </div>
       </div>

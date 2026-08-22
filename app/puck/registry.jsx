@@ -22,6 +22,13 @@ import { Divider } from "./components/divider.jsx";
 import { CodeBlock } from "./components/code-block.jsx";
 import { Accordion } from "./components/accordion.jsx";
 import { Space } from "./components/space.jsx";
+import { Image } from "./components/image.jsx";
+import { Testimonial } from "./components/testimonial.jsx";
+import { LogoCloud } from "./components/logo-cloud.jsx";
+import { Stats } from "./components/stats.jsx";
+import { SocialLinks } from "./components/social-links.jsx";
+import { PricingTable } from "./components/pricing-table.jsx";
+import { TagList } from "./components/tag-list.jsx";
 
 /** @type {import("@puckeditor/core").Config} */
 export const puckConfig = {
@@ -43,5 +50,12 @@ export const puckConfig = {
     CodeBlock,
     Accordion,
     Space,
+    Image,
+    Testimonial,
+    LogoCloud,
+    Stats,
+    SocialLinks,
+    PricingTable,
+    TagList,
   },
 };

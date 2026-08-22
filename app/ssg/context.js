@@ -61,9 +61,12 @@ export function resolveHref(context, path) {
  * @param {Collections} opts.collections
  * @param {ContentItem} [opts.page]
  * @param {{title: string, slug: string, url: string}} [opts.section]
+ * @param {import("../themes/types.js").Theme} [opts.theme] - thème actif du site (voir
+ *   resolveThemeFromRepoFiles() dans app/site/site-builder.js), absent pour un site sans
+ *   thème (legacy)
  * @returns {Context}
  */
-export function buildContext({ title, baseUrl, collections, page, section }) {
+export function buildContext({ title, baseUrl, collections, page, section, theme }) {
   /** @type {Context} */
   const context = {
     site: {
@@ -73,6 +76,7 @@ export function buildContext({ title, baseUrl, collections, page, section }) {
     },
     collections,
   };
+  if (theme) context.site.theme = theme;
   if (page) context.page = page;
   if (section) context.section = section;
   return context;

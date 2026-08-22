@@ -11,7 +11,7 @@
 import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
-import { TOKENS } from "../design-tokens.js";
+import { TOKENS, cssVar } from "../design-tokens.js";
 
 export const Footer = {
   label: "Footer",
@@ -51,14 +51,14 @@ export const Footer = {
           "--ssg-footer-fg": textColor || TOKENS.ink,
           backgroundColor: "var(--ssg-footer-bg)",
           color: "var(--ssg-footer-fg)",
-          borderTop: `1px solid ${TOKENS.border}`,
+          borderTop: `1px solid ${cssVar("border")}`,
           padding: "2.5rem 2rem",
           display: "flex",
           flexWrap: "wrap",
           justifyContent: "space-between",
           alignItems: "center",
           gap: "1.5rem",
-          fontFamily: TOKENS.fontFamily,
+          fontFamily: cssVar("fontFamily"),
         }}
       >
         <div>

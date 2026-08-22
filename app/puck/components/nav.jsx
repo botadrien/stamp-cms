@@ -15,7 +15,7 @@ import { bindingField } from "../fields/binding-field.jsx";
 import { resolveProps } from "../resolver.js";
 import { useSsgContext } from "../ssg-context.js";
 import { resolveHref } from "../../ssg/context.js";
-import { TOKENS } from "../design-tokens.js";
+import { TOKENS, cssVar } from "../design-tokens.js";
 
 const VARIANT_OPTIONS = [
   { label: "Horizontal", value: "horizontal" },
@@ -63,8 +63,8 @@ export const Nav = {
           flexDirection: variant === "vertical" ? "column" : "row",
           gap: variant === "vertical" ? "0.625rem" : "2rem",
           padding: "1.25rem 2rem",
-          borderBottom: `1px solid ${TOKENS.border}`,
-          fontFamily: TOKENS.fontFamily,
+          borderBottom: `1px solid ${cssVar("border")}`,
+          fontFamily: cssVar("fontFamily"),
         }}
       >
         {resolvedItems.map((item, index) => (

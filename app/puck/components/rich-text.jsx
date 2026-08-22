@@ -11,22 +11,22 @@
  * dangerouslySetInnerHTML.
  */
 
-import { TOKENS } from "../design-tokens.js";
+import { cssVar } from "../design-tokens.js";
 
 export const PROSE_CSS = `
-.ssg-prose { color: ${TOKENS.body}; }
+.ssg-prose { color: ${cssVar("body")}; }
 .ssg-prose > * + * { margin-top: 1.25em; }
-.ssg-prose h2 { font-size: 1.5rem; font-weight: 700; color: ${TOKENS.ink}; margin-top: 2em; letter-spacing: -0.01em; }
-.ssg-prose h3 { font-size: 1.1875rem; font-weight: 700; color: ${TOKENS.ink}; margin-top: 1.75em; }
-.ssg-prose a { color: ${TOKENS.accent}; text-decoration: underline; text-underline-offset: 0.15em; }
-.ssg-prose strong { color: ${TOKENS.ink}; font-weight: 700; }
+.ssg-prose h2 { font-size: 1.5rem; font-weight: 700; color: ${cssVar("ink")}; margin-top: 2em; letter-spacing: -0.01em; }
+.ssg-prose h3 { font-size: 1.1875rem; font-weight: 700; color: ${cssVar("ink")}; margin-top: 1.75em; }
+.ssg-prose a { color: ${cssVar("accent")}; text-decoration: underline; text-underline-offset: 0.15em; }
+.ssg-prose strong { color: ${cssVar("ink")}; font-weight: 700; }
 .ssg-prose ul, .ssg-prose ol { padding-left: 1.375em; }
 .ssg-prose li + li { margin-top: 0.4em; }
-.ssg-prose blockquote { border-left: 3px solid ${TOKENS.border}; margin-left: 0; padding-left: 1.25em; color: ${TOKENS.muted}; font-style: italic; }
-.ssg-prose code { background: ${TOKENS.surfaceAlt}; border-radius: 0.25rem; padding: 0.15em 0.4em; font-size: 0.875em; }
-.ssg-prose pre { background: ${TOKENS.ink}; color: #f4f4f5; border-radius: ${TOKENS.radiusSm}; padding: 1.25em; overflow-x: auto; }
+.ssg-prose blockquote { border-left: 3px solid ${cssVar("border")}; margin-left: 0; padding-left: 1.25em; color: ${cssVar("muted")}; font-style: italic; }
+.ssg-prose code { background: ${cssVar("surfaceAlt")}; border-radius: 0.25rem; padding: 0.15em 0.4em; font-size: 0.875em; }
+.ssg-prose pre { background: ${cssVar("ink")}; color: #f4f4f5; border-radius: ${cssVar("radiusSm")}; padding: 1.25em; overflow-x: auto; }
 .ssg-prose pre code { background: none; padding: 0; }
-.ssg-prose img { max-width: 100%; border-radius: ${TOKENS.radiusSm}; }
+.ssg-prose img { max-width: 100%; border-radius: ${cssVar("radiusSm")}; }
 `;
 
 export const RichText = {

@@ -30,6 +30,7 @@ import { Puck } from "@puckeditor/core";
 import "@puckeditor/core/puck.css";
 import { SsgContext } from "../app/puck/ssg-context.js";
 import { puckConfig } from "../app/puck/registry.jsx";
+import { componentIcons } from "../app/puck/component-icons.jsx";
 
 let root = null;
 
@@ -67,6 +68,15 @@ export function mount(elementId, { data, context, onPublish, onBack }) {
               ) : null}
               {children}
             </>
+          ),
+          // Préfixe chaque entrée de la palette (Drawer, voir @puckeditor/core) par un
+          // pictogramme (app/puck/component-icons.jsx) — Puck n'a pas de champ `icon` natif
+          // par composant dans la Config, seulement ce point d'extension au niveau du rendu.
+          drawerItem: ({ name, children }) => (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              {componentIcons[name]}
+              {children}
+            </div>
           ),
         }}
       />

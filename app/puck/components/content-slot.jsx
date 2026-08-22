@@ -14,7 +14,7 @@
  */
 
 import { useSsgContext } from "../ssg-context.js";
-import { TOKENS } from "../design-tokens.js";
+import { cssVar } from "../design-tokens.js";
 import { PROSE_CSS } from "./rich-text.jsx";
 
 const BOOL_OPTIONS = [
@@ -46,8 +46,8 @@ export const ContentSlot = {
             maxWidth: "42rem",
             margin: "0 auto",
             padding: "3.5rem 1.5rem",
-            color: TOKENS.muted,
-            fontFamily: TOKENS.fontFamily,
+            color: cssVar("muted"),
+            fontFamily: cssVar("fontFamily"),
             fontStyle: "italic",
           }}
         >
@@ -56,7 +56,7 @@ export const ContentSlot = {
       );
     }
     return (
-      <article style={{ maxWidth: "42rem", margin: "0 auto", padding: "3.5rem 1.5rem", fontFamily: TOKENS.fontFamily }}>
+      <article style={{ maxWidth: "42rem", margin: "0 auto", padding: "3.5rem 1.5rem", fontFamily: cssVar("fontFamily") }}>
         <style>{PROSE_CSS}</style>
         {showTitle && current.title ? (
           <h1
@@ -64,7 +64,7 @@ export const ContentSlot = {
               fontSize: "2.25rem",
               fontWeight: 800,
               letterSpacing: "-0.02em",
-              color: TOKENS.ink,
+              color: cssVar("ink"),
               margin: "0 0 0.5rem",
               lineHeight: 1.15,
             }}
@@ -73,7 +73,7 @@ export const ContentSlot = {
           </h1>
         ) : null}
         {showDate && current.date ? (
-          <p style={{ color: TOKENS.muted, fontSize: "0.875rem", margin: "0 0 2rem" }}>{current.date}</p>
+          <p style={{ color: cssVar("muted"), fontSize: "0.875rem", margin: "0 0 2rem" }}>{current.date}</p>
         ) : null}
         {content()}
       </article>

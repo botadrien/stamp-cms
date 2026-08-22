@@ -24,6 +24,8 @@
  * @property {string} title
  * @property {string} baseUrl
  * @property {Array<{label: string, url: string}>} nav
+ * @property {import("../themes/types.js").Theme} [theme] - thème actif du site (site.toml),
+ *   absent pour un site créé avant l'introduction des thèmes (voir app/themes/)
  *
  * @typedef {Object} Context
  * Objet passé à resolveProps ; reconstruit à chaque build/preview.
